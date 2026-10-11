@@ -5,7 +5,7 @@
 -- 使订单详情回查地址有真实数据。幂等，可重复执行。
 -- ==========================================
 
-INSERT IGNORE INTO savory_user.address_book
+INSERT IGNORE INTO jiwei_user.address_book
     (id, user_id, consignee, phone, sex, province_code, province_name, city_code, city_name, district_code, district_name, detail, label, is_default, create_time, update_time)
 SELECT
     u.id AS id,
@@ -21,6 +21,6 @@ SELECT
     1 AS is_default,
     NOW() AS create_time,
     NOW() AS update_time
-FROM savory_user.user u
+FROM jiwei_user.user u
 WHERE u.id BETWEEN 100 AND 400
-AND NOT EXISTS (SELECT 1 FROM savory_user.address_book ab WHERE ab.id = u.id);
+AND NOT EXISTS (SELECT 1 FROM jiwei_user.address_book ab WHERE ab.id = u.id);

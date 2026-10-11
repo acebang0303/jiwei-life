@@ -1,8 +1,8 @@
-# AI 服务重写（savory-ai）实现计划
+# AI 服务重写（jiwei-ai）实现计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 用 JChatMind 的手写 Agent Loop 运行时（状态机 + ToolCallingManager + 多模型注册表）替换 savory-ai 现有的「ChatClient 托管 ReAct」，并把探店/商家问数/审核三个业务 Agent 重写为该运行时之上的工具实例。
+**Goal:** 用 JChatMind 的手写 Agent Loop 运行时（状态机 + ToolCallingManager + 多模型注册表）替换 jiwei-ai 现有的「ChatClient 托管 ReAct」，并把探店/商家问数/审核三个业务 Agent 重写为该运行时之上的工具实例。
 
 **Architecture:** 引入 `JChatMind` 运行时类（think→execute→step→run 循环，`AgentState` 状态机，`MAX_STEPS=20` 硬上限），关闭 Spring AI 内部工具自动执行、用 `ToolCallingManager` 手动执行；`ChatClientRegistry` 注册 deepseek/Qwen/Kimi 三个模型；SSE 从 Flux 拉取式改为 SseEmitter 推送式。业务能力（推荐引擎、向量同步管道）不动。
 
@@ -16,11 +16,11 @@
 
 ## Global Constraints
 
-- 包名统一 `com.savory.ai`（沿用 savory-ai 现有包结构，不引入 `com.kama.jchatmind`）
-- Spring AI 版本对齐到 1.1.x 最新稳定（当前 savory-ai 用 `${spring-ai.version}`，JChatMind 用 BOM 1.1.0，智能问数用 1.1.2）
+- 包名统一 `com.jiwei.ai`（沿用 jiwei-ai 现有包结构，不引入 `com.kama.jchatmind`）
+- Spring AI 版本对齐到 1.1.x 最新稳定（当前 jiwei-ai 用 `${spring-ai.version}`，JChatMind 用 BOM 1.1.0，智能问数用 1.1.2）
 - 多模型固定为 `deepseek` + `qwen` + `kimi`（用户已确认，无 glm）
 - Embedding 保持现有 bge-m3（走 SiliconFlow API，**不**换成 JChatMind 的本地 Ollama）
-- 对话历史持久化用 savory-ai 现有的 `ConversationService`（MongoDB），**不**引入 JChatMind 的 `ChatMessageFacadeService`（MySQL）
+- 对话历史持久化用 jiwei-ai 现有的 `ConversationService`（MongoDB），**不**引入 JChatMind 的 `ChatMessageFacadeService`（MySQL）
 - `RecommendEngine`、`EmbeddingConsumer`（RocketMQ 向量同步）**保持不变**
 - 每个 Task 完成后 `git add` 具体文件并 commit，禁止 `git add -A`
 
@@ -29,35 +29,35 @@
 ## File Structure 概览
 
 **新建：**
-- `savory-ai/src/main/java/com/savory/ai/config/ChatClientRegistry.java` — 多模型注册表（Map<String, ChatClient>）
-- `savory-ai/src/main/java/com/savory/ai/config/MultiChatClientConfig.java` — 注册 3 个 ChatClient bean
-- `savory-ai/src/main/java/com/savory/ai/agent/AgentState.java` — Agent 状态枚举
-- `savory-ai/src/main/java/com/savory/ai/agent/JChatMind.java` — Agent Loop 运行时（核心）
-- `savory-ai/src/main/java/com/savory/ai/agent/AgentRuntimeFactory.java` — 业务 Agent 工厂（角色 + 工具集）
-- `savory-ai/src/main/java/com/savory/ai/sse/SseService.java` + `SseServiceImpl.java` — 推送式 SSE
-- `savory-ai/src/main/java/com/savory/ai/rag/MarkdownParserService.java` + `impl/MarkdownParserServiceImpl.java` — Markdown 分块
+- `jiwei-ai/src/main/java/com/jiwei/ai/config/ChatClientRegistry.java` — 多模型注册表（Map<String, ChatClient>）
+- `jiwei-ai/src/main/java/com/jiwei/ai/config/MultiChatClientConfig.java` — 注册 3 个 ChatClient bean
+- `jiwei-ai/src/main/java/com/jiwei/ai/agent/AgentState.java` — Agent 状态枚举
+- `jiwei-ai/src/main/java/com/jiwei/ai/agent/JChatMind.java` — Agent Loop 运行时（核心）
+- `jiwei-ai/src/main/java/com/jiwei/ai/agent/AgentRuntimeFactory.java` — 业务 Agent 工厂（角色 + 工具集）
+- `jiwei-ai/src/main/java/com/jiwei/ai/sse/SseService.java` + `SseServiceImpl.java` — 推送式 SSE
+- `jiwei-ai/src/main/java/com/jiwei/ai/rag/MarkdownParserService.java` + `impl/MarkdownParserServiceImpl.java` — Markdown 分块
 
 **修改：**
-- `savory-ai/pom.xml` — 加多模型 starter + flexmark
-- `savory-ai/src/main/resources/application.yml` — 多模型配置
-- `savory-ai/src/main/java/com/savory/ai/agent/{ExploreAgent,MerchantAgent,AuditAgent}.java` — 重写为工具/实例
-- `savory-ai/src/main/java/com/savory/ai/rag/RagService.java` — 分块改用 MarkdownParserService
-- `savory-ai/src/main/java/com/savory/ai/nlsql/SqlValidator.java` — 补强注释剥离/字符串剥离/分号计数
-- `savory-ai/src/main/java/com/savory/ai/controller/AgentController.java` — 适配 SseEmitter
+- `jiwei-ai/pom.xml` — 加多模型 starter + flexmark
+- `jiwei-ai/src/main/resources/application.yml` — 多模型配置
+- `jiwei-ai/src/main/java/com/jiwei/ai/agent/{ExploreAgent,MerchantAgent,AuditAgent}.java` — 重写为工具/实例
+- `jiwei-ai/src/main/java/com/jiwei/ai/rag/RagService.java` — 分块改用 MarkdownParserService
+- `jiwei-ai/src/main/java/com/jiwei/ai/nlsql/SqlValidator.java` — 补强注释剥离/字符串剥离/分号计数
+- `jiwei-ai/src/main/java/com/jiwei/ai/controller/AgentController.java` — 适配 SseEmitter
 
 **测试：**
-- `savory-ai/src/test/java/com/savory/ai/nlsql/SqlValidatorTest.java`
-- `savory-ai/src/test/java/com/savory/ai/rag/MarkdownParserServiceTest.java`
+- `jiwei-ai/src/test/java/com/jiwei/ai/nlsql/SqlValidatorTest.java`
+- `jiwei-ai/src/test/java/com/jiwei/ai/rag/MarkdownParserServiceTest.java`
 
 ---
 
 ## Task 1: 多模型注册表 + 依赖对齐
 
 **Files:**
-- Modify: `savory-ai/pom.xml`
-- Modify: `savory-ai/src/main/resources/application.yml`
-- Create: `savory-ai/src/main/java/com/savory/ai/config/ChatClientRegistry.java`
-- Create: `savory-ai/src/main/java/com/savory/ai/config/MultiChatClientConfig.java`
+- Modify: `jiwei-ai/pom.xml`
+- Modify: `jiwei-ai/src/main/resources/application.yml`
+- Create: `jiwei-ai/src/main/java/com/jiwei/ai/config/ChatClientRegistry.java`
+- Create: `jiwei-ai/src/main/java/com/jiwei/ai/config/MultiChatClientConfig.java`
 
 **Interfaces:**
 - Consumes: 无（第一个任务）
@@ -67,7 +67,7 @@
 
 - [ ] **Step 1: pom.xml 增加多模型 starter**
 
-在 `savory-ai/pom.xml` 的 `<dependencies>` 中，替换现有的 `spring-ai-openai-spring-boot-starter` 为三个模型的 starter（版本用 `${spring-ai.version}`）：
+在 `jiwei-ai/pom.xml` 的 `<dependencies>` 中，替换现有的 `spring-ai-openai-spring-boot-starter` 为三个模型的 starter（版本用 `${spring-ai.version}`）：
 
 ```xml
 <!-- DeepSeek -->
@@ -127,7 +127,7 @@ spring:
 - [ ] **Step 3: 创建 ChatClientRegistry**
 
 ```java
-package com.savory.ai.config;
+package com.jiwei.ai.config;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
@@ -151,7 +151,7 @@ public class ChatClientRegistry {
 - [ ] **Step 4: 创建 MultiChatClientConfig**
 
 ```java
-package com.savory.ai.config;
+package com.jiwei.ai.config;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.deepseek.DeepSeekChatModel;
@@ -182,13 +182,13 @@ public class MultiChatClientConfig {
 
 - [ ] **Step 5: 编译验证**
 
-Run: `cd savory-life/savory-ai && mvn compile -DskipTests`
+Run: `cd jiwei-life/jiwei-ai && mvn compile -DskipTests`
 Expected: BUILD SUCCESS，三个 ChatClient bean 能被 Spring 容器加载（若报类不存在，按 Step 1 的 fallback 调整 starter）
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add savory-ai/pom.xml savory-ai/src/main/resources/application.yml savory-ai/src/main/java/com/savory/ai/config/
+git add jiwei-ai/pom.xml jiwei-ai/src/main/resources/application.yml jiwei-ai/src/main/java/com/jiwei/ai/config/
 git commit -m "feat(ai): 引入 deepseek/qwen/kimi 多模型注册表"
 ```
 
@@ -197,8 +197,8 @@ git commit -m "feat(ai): 引入 deepseek/qwen/kimi 多模型注册表"
 ## Task 2: Agent Loop 运行时（JChatMind 核心移植）
 
 **Files:**
-- Create: `savory-ai/src/main/java/com/savory/ai/agent/AgentState.java`
-- Create: `savory-ai/src/main/java/com/savory/ai/agent/JChatMind.java`
+- Create: `jiwei-ai/src/main/java/com/jiwei/ai/agent/AgentState.java`
+- Create: `jiwei-ai/src/main/java/com/jiwei/ai/agent/JChatMind.java`
 
 **Interfaces:**
 - Consumes: `ChatClientRegistry.get(String)`（Task 1）、`SseService`（Task 3 定义，先以接口占位引用）
@@ -209,7 +209,7 @@ git commit -m "feat(ai): 引入 deepseek/qwen/kimi 多模型注册表"
 - [ ] **Step 1: 创建 AgentState 枚举**
 
 ```java
-package com.savory.ai.agent;
+package com.jiwei.ai.agent;
 
 public enum AgentState {
     IDLE,       // 空闲
@@ -224,10 +224,10 @@ public enum AgentState {
 
 从源 `D:\qiuzhao\jchatmind_v2\JChatMind\jchatmind\src\main\java\com\kama\jchatmind\agent\JChatMind.java` 移植，做以下适配：
 
-1. 包名改 `com.savory.ai.agent`
-2. **删除** `availableKbs`、`KnowledgeBaseDTO` 相关字段和 thinkPrompt 里的知识库提示（savory-ai 用 RAG 检索，不用知识库列表）
-3. `SseService` 换成 `com.savory.ai.sse.SseService`（Task 3 提供）
-4. `ChatMessageFacadeService`/`ChatMessageConverter`/`ChatMessageDTO` 替换为 savory-ai 现有的 `ConversationService`（对话持久化到 MongoDB）；若暂时不做对话持久化，`saveMessage`/`refreshPendingMessages` 降级为只 `sseService.send` 不落库
+1. 包名改 `com.jiwei.ai.agent`
+2. **删除** `availableKbs`、`KnowledgeBaseDTO` 相关字段和 thinkPrompt 里的知识库提示（jiwei-ai 用 RAG 检索，不用知识库列表）
+3. `SseService` 换成 `com.jiwei.ai.sse.SseService`（Task 3 提供）
+4. `ChatMessageFacadeService`/`ChatMessageConverter`/`ChatMessageDTO` 替换为 jiwei-ai 现有的 `ConversationService`（对话持久化到 MongoDB）；若暂时不做对话持久化，`saveMessage`/`refreshPendingMessages` 降级为只 `sseService.send` 不落库
 5. 保留核心的四个方法不动：`think()`（构建 thinkPrompt→chatClient 调用→返回是否有 toolCalls）、`execute()`（ToolCallingManager 执行→检查 terminate）、`step()`、`run()`（for 循环 MAX_STEPS=20）
 
 核心方法签名保持不变：
@@ -256,19 +256,19 @@ public class JChatMind {
 若 Task 3 尚未做，先建一个最小 `SseService` 接口 + 空实现让编译通过：
 
 ```java
-package com.savory.ai.sse;
+package com.jiwei.ai.sse;
 public interface SseService {
     void send(String sessionId, Object message);
 }
 ```
 
-Run: `cd savory-life/savory-ai && mvn compile -DskipTests`
+Run: `cd jiwei-life/jiwei-ai && mvn compile -DskipTests`
 Expected: BUILD SUCCESS
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add savory-ai/src/main/java/com/savory/ai/agent/
+git add jiwei-ai/src/main/java/com/jiwei/ai/agent/
 git commit -m "feat(ai): 移植 JChatMind 手写 Agent Loop 运行时与状态机"
 ```
 
@@ -277,9 +277,9 @@ git commit -m "feat(ai): 移植 JChatMind 手写 Agent Loop 运行时与状态�
 ## Task 3: 推送式 SSE 服务
 
 **Files:**
-- Create: `savory-ai/src/main/java/com/savory/ai/sse/SseService.java`
-- Create: `savory-ai/src/main/java/com/savory/ai/sse/SseServiceImpl.java`
-- Modify: `savory-ai/src/main/java/com/savory/ai/controller/AgentController.java`
+- Create: `jiwei-ai/src/main/java/com/jiwei/ai/sse/SseService.java`
+- Create: `jiwei-ai/src/main/java/com/jiwei/ai/sse/SseServiceImpl.java`
+- Modify: `jiwei-ai/src/main/java/com/jiwei/ai/controller/AgentController.java`
 
 **Interfaces:**
 - Consumes: `AgentEvent`（现有 dto）
@@ -290,7 +290,7 @@ git commit -m "feat(ai): 移植 JChatMind 手写 Agent Loop 运行时与状态�
 - [ ] **Step 1: 定义 SseService 接口**
 
 ```java
-package com.savory.ai.sse;
+package com.jiwei.ai.sse;
 
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -304,7 +304,7 @@ public interface SseService {
 - [ ] **Step 2: 实现 SseServiceImpl（ConcurrentHashMap 管理连接）**
 
 ```java
-package com.savory.ai.sse;
+package com.jiwei.ai.sse;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -370,13 +370,13 @@ public SseEmitter exploreChat(@RequestParam String message,
 
 - [ ] **Step 4: 编译验证**
 
-Run: `cd savory-life/savory-ai && mvn compile -DskipTests`
+Run: `cd jiwei-life/jiwei-ai && mvn compile -DskipTests`
 Expected: BUILD SUCCESS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add savory-ai/src/main/java/com/savory/ai/sse/ savory-ai/src/main/java/com/savory/ai/controller/AgentController.java
+git add jiwei-ai/src/main/java/com/jiwei/ai/sse/ jiwei-ai/src/main/java/com/jiwei/ai/controller/AgentController.java
 git commit -m "feat(ai): SSE 改为 SseEmitter 推送式，支持 Agent Loop 内部主动推送"
 ```
 
@@ -385,10 +385,10 @@ git commit -m "feat(ai): SSE 改为 SseEmitter 推送式，支持 Agent Loop 内
 ## Task 4: 业务 Agent 重写为运行时实例
 
 **Files:**
-- Modify: `savory-ai/src/main/java/com/savory/ai/agent/ExploreAgent.java`
-- Modify: `savory-ai/src/main/java/com/savory/ai/agent/MerchantAgent.java`
-- Modify: `savory-ai/src/main/java/com/savory/ai/agent/AuditAgent.java`
-- Create: `savory-ai/src/main/java/com/savory/ai/agent/AgentRuntimeFactory.java`
+- Modify: `jiwei-ai/src/main/java/com/jiwei/ai/agent/ExploreAgent.java`
+- Modify: `jiwei-ai/src/main/java/com/jiwei/ai/agent/MerchantAgent.java`
+- Modify: `jiwei-ai/src/main/java/com/jiwei/ai/agent/AuditAgent.java`
+- Create: `jiwei-ai/src/main/java/com/jiwei/ai/agent/AgentRuntimeFactory.java`
 
 **Interfaces:**
 - Consumes: `JChatMind`（Task 2）、`ChatClientRegistry`（Task 1）、`ExploreTools`（现有）
@@ -399,11 +399,11 @@ git commit -m "feat(ai): SSE 改为 SseEmitter 推送式，支持 Agent Loop 内
 - [ ] **Step 1: 创建 AgentRuntimeFactory，把业务 Agent 定义为「角色 + 工具集」**
 
 ```java
-package com.savory.ai.agent;
+package com.jiwei.ai.agent;
 
-import com.savory.ai.config.ChatClientRegistry;
-import com.savory.ai.sse.SseService;
-import com.savory.ai.tool.ExploreTools;
+import com.jiwei.ai.config.ChatClientRegistry;
+import com.jiwei.ai.sse.SseService;
+import com.jiwei.ai.tool.ExploreTools;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
@@ -431,7 +431,7 @@ public class AgentRuntimeFactory {
     }
 
     private static final String EXPLORE_SYSTEM_PROMPT = """
-            你是知味生活的探店助手，帮助用户规划本地约会、聚餐、出游路线。
+            你是吉味生活的探店助手，帮助用户规划本地约会、聚餐、出游路线。
             可用工具：semanticSearchRestaurant / getUserPreferenceTags / getNearbyPOI / getWeather
             收敛规则：本轮最多调用工具 8 次，达到上限后必须基于已有结果直接回答。
             """;
@@ -452,13 +452,13 @@ AuditAgent 是「同步调用」（`/ai/audit/content` 直接返回审核结果�
 
 - [ ] **Step 5: 编译验证**
 
-Run: `cd savory-life/savory-ai && mvn compile -DskipTests`
+Run: `cd jiwei-life/jiwei-ai && mvn compile -DskipTests`
 Expected: BUILD SUCCESS
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add savory-ai/src/main/java/com/savory/ai/agent/
+git add jiwei-ai/src/main/java/com/jiwei/ai/agent/
 git commit -m "feat(ai): 业务 Agent 重写为 JChatMind 运行时实例（角色+工具集）"
 ```
 
@@ -467,10 +467,10 @@ git commit -m "feat(ai): 业务 Agent 重写为 JChatMind 运行时实例（角�
 ## Task 5: RAG 分块升级（Markdown 按 Heading 切）
 
 **Files:**
-- Create: `savory-ai/src/main/java/com/savory/ai/rag/MarkdownParserService.java`
-- Create: `savory-ai/src/main/java/com/savory/ai/rag/impl/MarkdownParserServiceImpl.java`
-- Modify: `savory-ai/src/main/java/com/savory/ai/rag/RagService.java`
-- Test: `savory-ai/src/test/java/com/savory/ai/rag/MarkdownParserServiceTest.java`
+- Create: `jiwei-ai/src/main/java/com/jiwei/ai/rag/MarkdownParserService.java`
+- Create: `jiwei-ai/src/main/java/com/jiwei/ai/rag/impl/MarkdownParserServiceImpl.java`
+- Modify: `jiwei-ai/src/main/java/com/jiwei/ai/rag/RagService.java`
+- Test: `jiwei-ai/src/test/java/com/jiwei/ai/rag/MarkdownParserServiceTest.java`
 
 **Interfaces:**
 - Consumes: 无
@@ -481,7 +481,7 @@ git commit -m "feat(ai): 业务 Agent 重写为 JChatMind 运行时实例（角�
 - [ ] **Step 1: 写失败测试**
 
 ```java
-package com.savory.ai.rag;
+package com.jiwei.ai.rag;
 
 import org.junit.jupiter.api.Test;
 import java.util.List;
@@ -509,16 +509,16 @@ class MarkdownParserServiceTest {
 
 - [ ] **Step 2: 运行测试确认失败**
 
-Run: `cd savory-life/savory-ai && mvn test -Dtest=MarkdownParserServiceTest`
+Run: `cd jiwei-life/jiwei-ai && mvn test -Dtest=MarkdownParserServiceTest`
 Expected: 编译失败（`MarkdownParserService` 不存在）
 
 - [ ] **Step 3: 实现 MarkdownParserService**
 
-从源 `D:\qiuzhao\jchatmind_v2\JChatMind\jchatmind\src\main\java\com\kama\jchatmind\service\MarkdownParserService.java` 和 `impl/MarkdownParserServiceImpl.java` 移植，包名改 `com.savory.ai.rag`。核心逻辑：用 flexmark 解析 Markdown，`extractSections` 按 Heading 节点切分成「标题 + 正文」段落。
+从源 `D:\qiuzhao\jchatmind_v2\JChatMind\jchatmind\src\main\java\com\kama\jchatmind\service\MarkdownParserService.java` 和 `impl/MarkdownParserServiceImpl.java` 移植，包名改 `com.jiwei.ai.rag`。核心逻辑：用 flexmark 解析 Markdown，`extractSections` 按 Heading 节点切分成「标题 + 正文」段落。
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `cd savory-life/savory-ai && mvn test -Dtest=MarkdownParserServiceTest`
+Run: `cd jiwei-life/jiwei-ai && mvn test -Dtest=MarkdownParserServiceTest`
 Expected: PASS
 
 - [ ] **Step 5: RagService 改用 MarkdownParserService**
@@ -528,7 +528,7 @@ Expected: PASS
 - [ ] **Step 6: Commit**
 
 ```bash
-git add savory-ai/src/main/java/com/savory/ai/rag/ savory-ai/src/test/java/com/savory/ai/rag/
+git add jiwei-ai/src/main/java/com/jiwei/ai/rag/ jiwei-ai/src/test/java/com/jiwei/ai/rag/
 git commit -m "feat(ai): RAG 分块从定长切分升级为 Markdown 按 Heading 切分"
 ```
 
@@ -537,8 +537,8 @@ git commit -m "feat(ai): RAG 分块从定长切分升级为 Markdown 按 Heading
 ## Task 6: SQL 校验补强（注释剥离 + 字符串剥离 + 分号计数）
 
 **Files:**
-- Modify: `savory-ai/src/main/java/com/savory/ai/nlsql/SqlValidator.java`
-- Test: `savory-ai/src/test/java/com/savory/ai/nlsql/SqlValidatorTest.java`
+- Modify: `jiwei-ai/src/main/java/com/jiwei/ai/nlsql/SqlValidator.java`
+- Test: `jiwei-ai/src/test/java/com/jiwei/ai/nlsql/SqlValidatorTest.java`
 
 **Interfaces:**
 - Consumes: 现有 `SqlValidator.validate(String) -> boolean`
@@ -549,7 +549,7 @@ git commit -m "feat(ai): RAG 分块从定长切分升级为 Markdown 按 Heading
 - [ ] **Step 1: 写失败测试（针对新增的三类注入）**
 
 ```java
-package com.savory.ai.nlsql;
+package com.jiwei.ai.nlsql;
 
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -578,7 +578,7 @@ class SqlValidatorTest {
 
 - [ ] **Step 2: 运行测试确认失败**
 
-Run: `cd savory-life/savory-ai && mvn test -Dtest=SqlValidatorTest`
+Run: `cd jiwei-life/jiwei-ai && mvn test -Dtest=SqlValidatorTest`
 Expected: `shouldRejectMultipleStatements` 失败（当前实现无分号计数，会误放行两个 SELECT）；`shouldAcceptSemicolonInsideStringLiteral` 通过（字符串内分号本就不该拦截，作为剥离逻辑的回归守卫）
 
 - [ ] **Step 3: 补强 SqlValidator**
@@ -612,13 +612,13 @@ private String stripStrings(String sql) {
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `cd savory-life/savory-ai && mvn test -Dtest=SqlValidatorTest`
+Run: `cd jiwei-life/jiwei-ai && mvn test -Dtest=SqlValidatorTest`
 Expected: 3 个测试全 PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add savory-ai/src/main/java/com/savory/ai/nlsql/SqlValidator.java savory-ai/src/test/java/com/savory/ai/nlsql/SqlValidatorTest.java
+git add jiwei-ai/src/main/java/com/jiwei/ai/nlsql/SqlValidator.java jiwei-ai/src/test/java/com/jiwei/ai/nlsql/SqlValidatorTest.java
 git commit -m "feat(ai): SQL 校验补强注释剥离/字符串剥离/多语句分号检测"
 ```
 
@@ -637,11 +637,11 @@ git commit -m "feat(ai): SQL 校验补强注释剥离/字符串剥离/多语句�
 
 - [ ] **Step 1: 确认不落地 PgVectorTypeHandler**
 
-savory-ai 的 `RagService` 用 `JdbcTemplate` 直连 PostgreSQL（**无 MyBatis**，`savory-ai/pom.xml` 未引入 mybatis starter），已有 `vectorToString(float[])` 把 `float[]` 手工序列化为 pgvector 的 `"[...]"` 字符串（配合 `?::vector` 参数绑定）。因此**不需要**移植 JChatMind 的 MyBatis `BaseTypeHandler<float[]>`；TypeHandler 仅在 RagService 未来迁到 MyBatis 时才需要，本 plan 不落地。
+jiwei-ai 的 `RagService` 用 `JdbcTemplate` 直连 PostgreSQL（**无 MyBatis**，`jiwei-ai/pom.xml` 未引入 mybatis starter），已有 `vectorToString(float[])` 把 `float[]` 手工序列化为 pgvector 的 `"[...]"` 字符串（配合 `?::vector` 参数绑定）。因此**不需要**移植 JChatMind 的 MyBatis `BaseTypeHandler<float[]>`；TypeHandler 仅在 RagService 未来迁到 MyBatis 时才需要，本 plan 不落地。
 
 - [ ] **Step 2: 端到端验证（启动 + 对话）**
 
-Run: `cd savory-life/savory-ai && mvn spring-boot:run`
+Run: `cd jiwei-life/jiwei-ai && mvn spring-boot:run`
 Expected: 服务在 :8087 启动，日志显示 deepseek/qwen/kimi 三个 ChatClient bean 加载成功
 
 验证对话（curl）：

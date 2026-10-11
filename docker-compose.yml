@@ -2,7 +2,7 @@ services:
   # ========== MySQL 8.0 ==========
   mysql:
     image: mysql:8.0
-    container_name: savory-mysql
+    container_name: jiwei-mysql
     ports:
       - "3307:3306"
     environment:
@@ -11,8 +11,8 @@ services:
       # 此前容器默认 UTC，导致 SQL 脚本/mysql 客户端 NOW() 写入 UTC 字面，与应用写入差 8 小时。
       TZ: Asia/Shanghai
     volumes:
-      # external: 引用既有数据卷（早期项目名 savorylife_ 创建），避免 compose 新建空卷丢数据
-      - savory_mysql_data:/var/lib/mysql
+      # external: 引用既有数据卷（历史卷名 savorylife_savory_mysql_data，故意保留不改名，避免丢数据）
+      - jiwei_mysql_data:/var/lib/mysql
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
@@ -24,41 +24,41 @@ services:
   # ========== Redis 7.x ==========
   redis:
     image: redis:7-alpine
-    container_name: savory-redis
+    container_name: jiwei-redis
     ports:
       - "6380:6379"
     volumes:
-      - savory_redis_data:/data
+      - jiwei_redis_data:/data
     restart: unless-stopped
 
   # ========== MongoDB 7.x ==========
   mongodb:
     image: mongo:7
-    container_name: savory-mongodb
+    container_name: jiwei-mongodb
     ports:
       - "27017:27017"
     volumes:
-      - savory_mongo_data:/data/db
+      - jiwei_mongo_data:/data/db
     restart: unless-stopped
 
   # ========== PostgreSQL 16 + pgvector ==========
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: savory-postgres
+    container_name: jiwei-postgres
     ports:
       - "5433:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: savory_ai
+      POSTGRES_DB: jiwei_ai
     volumes:
-      - savory_pg_data:/var/lib/postgresql/data
+      - jiwei_pg_data:/var/lib/postgresql/data
     restart: unless-stopped
 
   # ========== RocketMQ NameServer ==========
   rocketmq-namesrv:
     image: apache/rocketmq:5.3.0
-    container_name: savory-rmq-namesrv
+    container_name: jiwei-rmq-namesrv
     ports:
       - "9876:9876"
     environment:
@@ -69,7 +69,7 @@ services:
   # ========== RocketMQ Broker ==========
   rocketmq-broker:
     image: apache/rocketmq:5.3.0
-    container_name: savory-rmq-broker
+    container_name: jiwei-rmq-broker
     depends_on:
       - rocketmq-namesrv
     ports:
@@ -86,9 +86,9 @@ services:
 volumes:
   # external: MySQL 数据卷名是早期项目名 savorylife_savory_mysql_data（无连字符），
   # 手动 docker run 重建也用它；compose 显式 external 引用，避免 recreate 时误建空卷
-  savory_mysql_data:
+  jiwei_mysql_data:
     external: true
     name: savorylife_savory_mysql_data
-  savory_redis_data:
-  savory_mongo_data:
-  savory_pg_data:
+  jiwei_redis_data:
+  jiwei_mongo_data:
+  jiwei_pg_data:

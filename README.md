@@ -1,6 +1,6 @@
-# 知味生活 · SavoryLife
+# 吉味生活 · JiweiLife
 
-[![CI](https://github.com/acebang0303/savory-life/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/acebang0303/savory-life/actions/workflows/ci.yml)
+[![CI](https://github.com/acebang0303/jiwei-life/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/acebang0303/jiwei-life/actions/workflows/ci.yml)
 
 融合 **O2O 本地生活 + 内容社区 + AI Agent 智能助手** 的全栈平台。
 
@@ -26,22 +26,22 @@
 ## 项目结构
 
 ```
-savory-life/
-├── savory-common/            # 公共模块（常量、异常、Result、JWT 工具）
-├── savory-pojo/              # 实体 / DTO / VO
-├── savory-framework/         # 框架模块（拦截器、RocketMQ 配置、全局异常）
-├── savory-modules/           # 主应用 :8080（DDD 领域拆分，模块化单体）
+jiwei-life/
+├── jiwei-common/            # 公共模块（常量、异常、Result、JWT 工具）
+├── jiwei-pojo/              # 实体 / DTO / VO
+├── jiwei-framework/         # 框架模块（拦截器、RocketMQ 配置、全局异常）
+├── jiwei-modules/           # 主应用 :8080（DDD 领域拆分，模块化单体）
 │   ├── auth/                 # 认证（JWT + RBAC，C 端微信 mock 登录）
 │   ├── user/                 # 用户（地址、成长值、行为上报）
 │   ├── merchant/             # 商户（店铺、菜品、分类、套餐）
 │   ├── trade/                # 交易（购物车、订单、支付中台、WebSocket）
 │   ├── market/               # 营销（秒杀、优惠券、签到、短链）
 │   └── social/               # 内容社区（笔记、评论、点赞、关注）
-├── savory-ai/                # AI 独立服务 :8087（Spring AI 多模型）
-├── savory-admin/             # 管理端前端 :5173 (Vue 3 + Vite + Element Plus)
-├── savory-merchant/          # 商家端前端 :5174 (Vue 3 + Vite)
-├── savory-screen/            # 数据大屏 :5175 (Vue 3 + Vite)
-├── savory-miniapp/           # 用户端微信小程序 (uni-app, 18 页)
+├── jiwei-ai/                # AI 独立服务 :8087（Spring AI 多模型）
+├── jiwei-admin/             # 管理端前端 :5173 (Vue 3 + Vite + Element Plus)
+├── jiwei-merchant/          # 商家端前端 :5174 (Vue 3 + Vite)
+├── jiwei-screen/            # 数据大屏 :5175 (Vue 3 + Vite)
+├── jiwei-miniapp/           # 用户端微信小程序 (uni-app, 18 页)
 ├── db/                       # SQL：6 库初始化 + 种子数据 + mock 生成器 + 修复脚本
 └── .github/workflows/ci.yml  # CI：JDK 21 全量 mvn test + package
 ```
@@ -72,7 +72,7 @@ savory-life/
 ### 用户域（user / auth）
 - C 端微信登录（dev 用 mock-login），成长值体系（签到 +5 / 下单 +10 / 发笔记 +5）
 
-### AI 服务（savory-ai）
+### AI 服务（jiwei-ai）
 - JChatMind ReAct Agent Loop / NL2SQL 商家问数 / 混合推荐（行为 + 语义向量 + 热度兜底）
 
 ## 环境要求
@@ -80,7 +80,7 @@ savory-life/
 - JDK 21 + Maven 3.9+
 - Node.js 22+
 - Docker Desktop（MySQL / Redis / RocketMQ / PostgreSQL+pgvector / MongoDB）
-- 微信开发者工具（跑小程序，导入 `savory-miniapp/dist/build/mp-weixin`）
+- 微信开发者工具（跑小程序，导入 `jiwei-miniapp/dist/build/mp-weixin`）
 
 ## 快速开始
 
@@ -94,31 +94,31 @@ docker compose -f docker-compose.yml up -d
 
 ### 3. 初始化数据库
 ```bash
-docker exec -i savory-mysql mysql -uroot -proot123 < db/init_all.sql
+docker exec -i jiwei-mysql mysql -uroot -proot123 < db/init_all.sql
 # 可选：更大规模演示数据
-docker exec -i savory-mysql mysql -uroot -proot123 < db/98_mock_data.sql
+docker exec -i jiwei-mysql mysql -uroot -proot123 < db/98_mock_data.sql
 # AI 服务依赖 pgvector（PostgreSQL），单独执行：
-docker exec -i savory-postgres psql -U postgres -d savory_ai -f /dev/stdin < db/07_pgvector.sql
+docker exec -i jiwei-postgres psql -U postgres -d jiwei_ai -f /dev/stdin < db/07_pgvector.sql
 ```
 > 注：MySQL 容器已统一为东八区时区（`TZ=Asia/Shanghai`），与应用 JDBC、Java 时间对齐。
 
 ### 4. 启动后端（主应用 + AI）
 ```bash
-cd savory-modules && mvn spring-boot:run     # 主应用 :8080
-cd savory-ai && mvn spring-boot:run          # AI 服务 :8087
+cd jiwei-modules && mvn spring-boot:run     # 主应用 :8080
+cd jiwei-ai && mvn spring-boot:run          # AI 服务 :8087
 ```
-> 改过 savory-common / pojo / framework 后，需先 `mvn install -pl savory-common,savory-pojo,savory-framework -DskipTests` 再启动。
+> 改过 jiwei-common / pojo / framework 后，需先 `mvn install -pl jiwei-common,jiwei-pojo,jiwei-framework -DskipTests` 再启动。
 
 ### 5. 启动前端
 ```bash
-cd savory-admin && npm run dev     # 管理端 :5173
-cd savory-merchant && npm run dev  # 商家端 :5174
-cd savory-screen && npm run dev    # 数据大屏 :5175
+cd jiwei-admin && npm run dev     # 管理端 :5173
+cd jiwei-merchant && npm run dev  # 商家端 :5174
+cd jiwei-screen && npm run dev    # 数据大屏 :5175
 ```
 
 ### 6. 小程序
 ```bash
-cd savory-miniapp && npm install
+cd jiwei-miniapp && npm install
 npm run dev:mp-weixin    # 开发：生成到 dist/dev/mp-weixin，微信开发者工具导入
 npm run build:mp-weixin # 构建：dist/build/mp-weixin
 ```
@@ -134,11 +134,11 @@ npm run build:mp-weixin # 构建：dist/build/mp-weixin
 mvn -B test
 
 # 秒杀并发压测（需后端运行 + 造测试活动）
-cd savory-modules/src/test/jmeter
+cd jiwei-modules/src/test/jmeter
 bash gen_tokens.sh 500        # 生成压测 token
 bash run_load.sh <活动ID> <菜品ID> 500   # JMeter 500 并发
 ```
-基准记录见 `savory-modules/src/test/jmeter/BENCHMARK.md`。
+基准记录见 `jiwei-modules/src/test/jmeter/BENCHMARK.md`。
 
 ## 关键设计
 

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 让 JChatMind Agent 成为 savory-life 三个端的一部分 —— 管理端新增运营智能助手、商家端增强（模型切换+会话+工具展示）、用户端接入非流式 Agent，并支持多轮会话续接。
+**Goal:** 让 JChatMind Agent 成为 jiwei-life 三个端的一部分 —— 管理端新增运营智能助手、商家端增强（模型切换+会话+工具展示）、用户端接入非流式 Agent，并支持多轮会话续接。
 
-**Architecture:** AI 服务（savory-ai :8087）新增 AgentEventSink 事件抽象解耦流式/非流式输出，新增 AdminAgent 工具集 + 非流式 `POST /ai/agent/chat` 接口；管理端/商家端用 SSE 流式（Web EventSource），小程序用非流式 JSON。会话历史复用现有 MongoDB `ConversationService`，JChatMind 启动时从 Mongo 加载最近历史续接。
+**Architecture:** AI 服务（jiwei-ai :8087）新增 AgentEventSink 事件抽象解耦流式/非流式输出，新增 AdminAgent 工具集 + 非流式 `POST /ai/agent/chat` 接口；管理端/商家端用 SSE 流式（Web EventSource），小程序用非流式 JSON。会话历史复用现有 MongoDB `ConversationService`，JChatMind 启动时从 Mongo 加载最近历史续接。
 
 **Tech Stack:** Java 21 / Spring Boot 3.5 / Spring AI / SSE / Vue3 + Vite + Element Plus（管理端、商家端）/ uni-app（小程序）
 
@@ -13,26 +13,26 @@
 ## Global Constraints
 
 - 项目非 git 仓库：**每个任务以编译/curl 验证代替 git commit**
-- 后端编译命令：`cd savory-life && mvn compile -pl savory-common,savory-pojo,savory-framework,savory-modules,savory-ai -DskipTests -q`（AI 服务只编 savory-ai 时可单跑 `mvn compile -pl savory-ai -DskipTests -q`）
+- 后端编译命令：`cd jiwei-life && mvn compile -pl jiwei-common,jiwei-pojo,jiwei-framework,jiwei-modules,jiwei-ai -DskipTests -q`（AI 服务只编 jiwei-ai 时可单跑 `mvn compile -pl jiwei-ai -DskipTests -q`）
 - AI 服务端口 8087；主服务 8080
 - 小程序请求 `/ai/**` 走 AI_BASE_URL `http://localhost:8087`，非 Result 包装
 - 管理端/商家端登录态：localStorage 存 `token`；商家端已存 `empId`；管理端需补存 `employeeId`
 - 模型 key 固定三个：`deepseek` / `kimi` / `qwen`（`ChatClientRegistry`）
 - 对话保存角色字段：`user` / `assistant`；工具调用字段 `toolCalls`
 - 所有 SSE 事件类型：`thinking` / `action` / `message` / `done` / `error`
-- 不改动主服务 savory-modules 的任何代码（本计划全部落在 savory-ai + 三个前端）
+- 不改动主服务 jiwei-modules 的任何代码（本计划全部落在 jiwei-ai + 三个前端）
 
 ---
 
 ### Task 1: AgentEventSink 事件抽象（后端）
 
 **Files:**
-- Create: `savory-ai/src/main/java/com/savory/ai/sse/AgentEventSink.java`
-- Create: `savory-ai/src/main/java/com/savory/ai/sse/SseEventSink.java`
-- Create: `savory-ai/src/main/java/com/savory/ai/sse/ListEventSink.java`
-- Modify: `savory-ai/src/main/java/com/savory/ai/agent/JChatMind.java`
-- Modify: `savory-ai/src/main/java/com/savory/ai/agent/AgentRuntimeFactory.java`
-- Test: `savory-ai/src/test/java/com/savory/ai/sse/ListEventSinkTest.java`
+- Create: `jiwei-ai/src/main/java/com/jiwei/ai/sse/AgentEventSink.java`
+- Create: `jiwei-ai/src/main/java/com/jiwei/ai/sse/SseEventSink.java`
+- Create: `jiwei-ai/src/main/java/com/jiwei/ai/sse/ListEventSink.java`
+- Modify: `jiwei-ai/src/main/java/com/jiwei/ai/agent/JChatMind.java`
+- Modify: `jiwei-ai/src/main/java/com/jiwei/ai/agent/AgentRuntimeFactory.java`
+- Test: `jiwei-ai/src/test/java/com/jiwei/ai/sse/ListEventSinkTest.java`
 
 **Interfaces:**
 - Consumes: `AgentEvent`（record: `(String type, String content)`，已存在）
@@ -43,9 +43,9 @@
 创建 `ListEventSinkTest.java`：
 
 ```java
-package com.savory.ai.sse;
+package com.jiwei.ai.sse;
 
-import com.savory.ai.dto.AgentEvent;
+import com.jiwei.ai.dto.AgentEvent;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -69,7 +69,7 @@ class ListEventSinkTest {
 
 - [ ] **Step 2: 运行测试确认失败**
 
-Run: `cd savory-life && mvn test -pl savory-ai -Dtest=ListEventSinkTest -DskipTests=false -q`
+Run: `cd jiwei-life && mvn test -pl jiwei-ai -Dtest=ListEventSinkTest -DskipTests=false -q`
 Expected: FAIL — `ListEventSink` 不存在（编译错误）
 
 - [ ] **Step 3: 实现三个类**
@@ -77,9 +77,9 @@ Expected: FAIL — `ListEventSink` 不存在（编译错误）
 `AgentEventSink.java`：
 
 ```java
-package com.savory.ai.sse;
+package com.jiwei.ai.sse;
 
-import com.savory.ai.dto.AgentEvent;
+import com.jiwei.ai.dto.AgentEvent;
 
 /**
  * Agent 事件输出通道。流式场景由 SseEventSink 推给前端，
@@ -93,9 +93,9 @@ public interface AgentEventSink {
 `SseEventSink.java`：
 
 ```java
-package com.savory.ai.sse;
+package com.jiwei.ai.sse;
 
-import com.savory.ai.dto.AgentEvent;
+import com.jiwei.ai.dto.AgentEvent;
 import org.springframework.stereotype.Component;
 
 /**
@@ -120,9 +120,9 @@ public class SseEventSink implements AgentEventSink {
 `ListEventSink.java`：
 
 ```java
-package com.savory.ai.sse;
+package com.jiwei.ai.sse;
 
-import com.savory.ai.dto.AgentEvent;
+import com.jiwei.ai.dto.AgentEvent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -148,7 +148,7 @@ public class ListEventSink implements AgentEventSink {
 - [ ] **Step 4: 改 JChatMind 用接口**
 
 修改 `JChatMind.java`：
-- import 中 `com.savory.ai.sse.SseService` → `com.savory.ai.sse.AgentEventSink`
+- import 中 `com.jiwei.ai.sse.SseService` → `com.jiwei.ai.sse.AgentEventSink`
 - 字段 `private final SseService sseService;` → `private final AgentEventSink eventSink;`
 - 构造器参数 `SseService sseService` → `AgentEventSink eventSink`（共 4 处构造器），赋值 `this.eventSink = eventSink`
 - 方法内两处 `sseService.send(chatSessionId, ...)` → `eventSink.send(chatSessionId, ...)`
@@ -163,12 +163,12 @@ public class ListEventSink implements AgentEventSink {
 
 - [ ] **Step 6: 运行测试确认通过**
 
-Run: `cd savory-life && mvn test -pl savory-ai -Dtest=ListEventSinkTest -DskipTests=false -q`
+Run: `cd jiwei-life && mvn test -pl jiwei-ai -Dtest=ListEventSinkTest -DskipTests=false -q`
 Expected: PASS
 
 - [ ] **Step 7: 编译验证**
 
-Run: `cd savory-life && mvn compile -pl savory-ai -DskipTests -q`
+Run: `cd jiwei-life && mvn compile -pl jiwei-ai -DskipTests -q`
 Expected: 无输出（成功）
 
 ---
@@ -176,9 +176,9 @@ Expected: 无输出（成功）
 ### Task 2: 会话续接 + 生命周期（后端）
 
 **Files:**
-- Modify: `savory-ai/src/main/java/com/savory/ai/service/ConversationService.java`
-- Create: `savory-ai/src/test/java/com/savory/ai/service/ConversationMessageLoaderTest.java`
-- Create: `savory-ai/src/main/java/com/savory/ai/agent/ConversationHistoryLoader.java`
+- Modify: `jiwei-ai/src/main/java/com/jiwei/ai/service/ConversationService.java`
+- Create: `jiwei-ai/src/test/java/com/jiwei/ai/service/ConversationMessageLoaderTest.java`
+- Create: `jiwei-ai/src/main/java/com/jiwei/ai/agent/ConversationHistoryLoader.java`
 
 **Interfaces:**
 - Consumes: `ConversationService.getRecentMessages(String, int)` → `List<Map<String,Object>>`，消息 map 含 `role`(user/assistant)、`content`
@@ -189,9 +189,9 @@ Expected: 无输出（成功）
 创建 `ConversationMessageLoaderTest.java`：
 
 ```java
-package com.savory.ai.agent;
+package com.jiwei.ai.agent;
 
-import com.savory.ai.service.ConversationService;
+import com.jiwei.ai.service.ConversationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
@@ -238,7 +238,7 @@ class ConversationMessageLoaderTest {
 
 - [ ] **Step 2: 运行测试确认失败**
 
-Run: `cd savory-life && mvn test -pl savory-ai -Dtest=ConversationMessageLoaderTest -DskipTests=false -q`
+Run: `cd jiwei-life && mvn test -pl jiwei-ai -Dtest=ConversationMessageLoaderTest -DskipTests=false -q`
 Expected: FAIL — 类不存在
 
 - [ ] **Step 3: 实现 ConversationHistoryLoader**
@@ -246,7 +246,7 @@ Expected: FAIL — 类不存在
 `ConversationHistoryLoader.java`：
 
 ```java
-package com.savory.ai.agent;
+package com.jiwei.ai.agent;
 
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
@@ -324,12 +324,12 @@ public final class ConversationHistoryLoader {
 
 - [ ] **Step 5: 运行测试确认通过**
 
-Run: `cd savory-life && mvn test -pl savory-ai -Dtest=ConversationMessageLoaderTest -DskipTests=false -q`
+Run: `cd jiwei-life && mvn test -pl jiwei-ai -Dtest=ConversationMessageLoaderTest -DskipTests=false -q`
 Expected: PASS
 
 - [ ] **Step 6: 编译验证**
 
-Run: `cd savory-life && mvn compile -pl savory-ai -DskipTests -q`
+Run: `cd jiwei-life && mvn compile -pl jiwei-ai -DskipTests -q`
 Expected: 成功
 
 ---
@@ -337,10 +337,10 @@ Expected: 成功
 ### Task 3: 非流式接口 `POST /ai/agent/chat`（后端）
 
 **Files:**
-- Create: `savory-ai/src/main/java/com/savory/ai/dto/AgentChatRequest.java`
-- Create: `savory-ai/src/main/java/com/savory/ai/dto/AgentChatResponse.java`
-- Create: `savory-ai/src/main/java/com/savory/ai/service/AgentChatService.java`
-- Modify: `savory-ai/src/main/java/com/savory/ai/controller/AgentController.java`
+- Create: `jiwei-ai/src/main/java/com/jiwei/ai/dto/AgentChatRequest.java`
+- Create: `jiwei-ai/src/main/java/com/jiwei/ai/dto/AgentChatResponse.java`
+- Create: `jiwei-ai/src/main/java/com/jiwei/ai/service/AgentChatService.java`
+- Modify: `jiwei-ai/src/main/java/com/jiwei/ai/controller/AgentController.java`
 
 **Interfaces:**
 - Consumes: `JChatMind`、`AgentRuntimeFactory.createExplore/createMerchant/createAdmin`（createAdmin 在 Task 4，本任务先用 EXPLORE/MERCHANT 两个分支）、`ConversationService`、`ConversationHistoryLoader`、`ListEventSink`、`AgentEvent`
@@ -351,7 +351,7 @@ Expected: 成功
 `AgentChatRequest.java`：
 
 ```java
-package com.savory.ai.dto;
+package com.jiwei.ai.dto;
 
 import lombok.Data;
 
@@ -370,7 +370,7 @@ public class AgentChatRequest {
 `AgentChatResponse.java`：
 
 ```java
-package com.savory.ai.dto;
+package com.jiwei.ai.dto;
 
 import java.util.List;
 
@@ -383,15 +383,15 @@ public record AgentChatResponse(String conversationId, List<AgentEvent> events, 
 `AgentChatService.java`：
 
 ```java
-package com.savory.ai.service;
+package com.jiwei.ai.service;
 
-import com.savory.ai.agent.AgentRuntimeFactory;
-import com.savory.ai.agent.ConversationHistoryLoader;
-import com.savory.ai.agent.JChatMind;
-import com.savory.ai.dto.AgentChatRequest;
-import com.savory.ai.dto.AgentChatResponse;
-import com.savory.ai.dto.AgentEvent;
-import com.savory.ai.sse.ListEventSink;
+import com.jiwei.ai.agent.AgentRuntimeFactory;
+import com.jiwei.ai.agent.ConversationHistoryLoader;
+import com.jiwei.ai.agent.JChatMind;
+import com.jiwei.ai.dto.AgentChatRequest;
+import com.jiwei.ai.dto.AgentChatResponse;
+import com.jiwei.ai.dto.AgentEvent;
+import com.jiwei.ai.sse.ListEventSink;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.stereotype.Service;
@@ -511,7 +511,7 @@ public class AgentChatService {
     }
 ```
 
-（import 增加 `com.savory.ai.sse.AgentEventSink`、`java.util.ArrayList`）
+（import 增加 `com.jiwei.ai.sse.AgentEventSink`、`java.util.ArrayList`）
 
 - [ ] **Step 4: AgentController 加 POST /ai/agent/chat**
 
@@ -534,7 +534,7 @@ public class AgentChatService {
 
 - [ ] **Step 5: 编译验证**
 
-Run: `cd savory-life && mvn compile -pl savory-ai -DskipTests -q`
+Run: `cd jiwei-life && mvn compile -pl jiwei-ai -DskipTests -q`
 Expected: 成功
 
 - [ ] **Step 6: curl 冒烟（EXPLORE，无会话）**
@@ -552,9 +552,9 @@ Expected: 返回 JSON，含 `conversationId`、`events` 数组、`finalAnswer`�
 ### Task 4: 管理端 AdminAgent + AdminTools + `/ai/admin/stream`（后端）
 
 **Files:**
-- Create: `savory-ai/src/main/java/com/savory/ai/agent/AdminTools.java`
-- Modify: `savory-ai/src/main/java/com/savory/ai/agent/AgentRuntimeFactory.java`
-- Modify: `savory-ai/src/main/java/com/savory/ai/controller/AgentController.java`
+- Create: `jiwei-ai/src/main/java/com/jiwei/ai/agent/AdminTools.java`
+- Modify: `jiwei-ai/src/main/java/com/jiwei/ai/agent/AgentRuntimeFactory.java`
+- Modify: `jiwei-ai/src/main/java/com/jiwei/ai/controller/AgentController.java`
 
 **Interfaces:**
 - Consumes: `SqlValidator`（`boolean validate(String sql)`）、`AuditAgent.audit(String, String)` → `JSONObject`、`RagService.semanticSearch(String, String, int)` → `List<Map>`、`bizJdbcTemplate`、`ChatClientRegistry`
@@ -565,13 +565,13 @@ Expected: 返回 JSON，含 `conversationId`、`events` 数组、`finalAnswer`�
 `AdminTools.java`：
 
 ```java
-package com.savory.ai.agent;
+package com.jiwei.ai.agent;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
-import com.savory.ai.config.ChatClientRegistry;
-import com.savory.ai.nlsql.SqlValidator;
-import com.savory.ai.rag.RagService;
+import com.jiwei.ai.config.ChatClientRegistry;
+import com.jiwei.ai.nlsql.SqlValidator;
+import com.jiwei.ai.rag.RagService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.tool.annotation.Tool;
@@ -596,12 +596,12 @@ public class AdminTools {
             你是一个SQL查询助手，负责将平台运营问题转换为MySQL SELECT查询语句。
 
             数据库表结构（跨库查询，请使用全限定表名）：
-            - savory_trade.orders: 订单表 (id, number, user_id, merchant_id, amount, pay_amount, pay_status, status, create_time, pay_time)，status: 5=已完成 6=已取消
-            - savory_trade.order_detail: 订单明细 (id, order_id, name菜品名, amount, number数量)
-            - savory_merchant.merchant_info: 商户表 (id, name, address, status, create_time)
-            - savory_merchant.dish: 菜品表 (id, merchant_id, name, price, status, sales, create_time)
-            - savory_social.note: 笔记表 (id, user_id, merchant_id, title, like_count, collect_count, comment_count, audit_status, create_time)
-            - savory_user.user: 用户表 (id, nickname, phone, growth_value, create_time)
+            - jiwei_trade.orders: 订单表 (id, number, user_id, merchant_id, amount, pay_amount, pay_status, status, create_time, pay_time)，status: 5=已完成 6=已取消
+            - jiwei_trade.order_detail: 订单明细 (id, order_id, name菜品名, amount, number数量)
+            - jiwei_merchant.merchant_info: 商户表 (id, name, address, status, create_time)
+            - jiwei_merchant.dish: 菜品表 (id, merchant_id, name, price, status, sales, create_time)
+            - jiwei_social.note: 笔记表 (id, user_id, merchant_id, title, like_count, collect_count, comment_count, audit_status, create_time)
+            - jiwei_user.user: 用户表 (id, nickname, phone, growth_value, create_time)
 
             规则：
             1. 只生成 SELECT 语句，不要有任何写操作
@@ -659,7 +659,7 @@ public class AdminTools {
 
     @Tool(description = "从运营知识库检索制度/流程/入驻规则等，返回相关文档片段")
     public String searchKnowledgeBase(@ToolParam(description = "知识库检索问题，如'入驻流程是什么'") String query) {
-        List<Map<String, Object>> docs = ragService.semanticSearch(query, "savory_ops", 5);
+        List<Map<String, Object>> docs = ragService.semanticSearch(query, "jiwei_ops", 5);
         return JSON.toJSONString(docs);
     }
 
@@ -667,10 +667,10 @@ public class AdminTools {
     public String merchantSuggestion(@ToolParam(description = "商户ID") Long merchantId) {
         //1、拉取该商户近30天订单与评价聚合
         String orderSql = "SELECT COUNT(*) AS order_cnt, IFNULL(SUM(pay_amount),0) AS revenue, " +
-                "IFNULL(AVG(pay_amount),0) AS avg_price FROM savory_trade.orders " +
+                "IFNULL(AVG(pay_amount),0) AS avg_price FROM jiwei_trade.orders " +
                 "WHERE merchant_id = " + merchantId + " AND status = 5";
         String reviewSql = "SELECT IFNULL(AVG(r.rating),0) AS avg_rating, COUNT(*) AS review_cnt " +
-                "FROM savory_social.review r JOIN savory_trade.orders o ON r.order_id = o.id " +
+                "FROM jiwei_social.review r JOIN jiwei_trade.orders o ON r.order_id = o.id " +
                 "WHERE o.merchant_id = " + merchantId;
         try {
             Map<String, Object> orders = bizJdbcTemplate.queryForList(orderSql).get(0);
@@ -737,7 +737,7 @@ public class AdminTools {
 
 ```java
     private static final String ADMIN_SYSTEM_PROMPT = """
-            你是知味生活平台的运营智能助手，帮助平台运营人员分析经营数据、审核内容、检索运营规则、给出商户建议。
+            你是吉味生活平台的运营智能助手，帮助平台运营人员分析经营数据、审核内容、检索运营规则、给出商户建议。
 
             可用工具：
             - queryPlatformData: 查询平台经营数据（订单/营收/商户排行/菜品销量）
@@ -797,7 +797,7 @@ public class AdminTools {
     }
 ```
 
-两个文件的 import 增加：`org.springframework.ai.chat.messages.Message`、`com.savory.ai.sse.AgentEventSink`、`java.util.List`。
+两个文件的 import 增加：`org.springframework.ai.chat.messages.Message`、`com.jiwei.ai.sse.AgentEventSink`、`java.util.List`。
 
 - [ ] **Step 4: AgentController 注入新依赖并加 GET /ai/admin/stream + 会话续接**
 
@@ -860,11 +860,11 @@ public class AdminTools {
     }
 ```
 
-import 增加：`org.springframework.ai.chat.messages.Message`、`com.savory.ai.agent.ConversationHistoryLoader`、`com.savory.ai.agent.AgentRuntimeFactory`、`com.savory.ai.sse.SseEventSink`、`com.savory.ai.service.ConversationService`、`java.util.List`。
+import 增加：`org.springframework.ai.chat.messages.Message`、`com.jiwei.ai.agent.ConversationHistoryLoader`、`com.jiwei.ai.agent.AgentRuntimeFactory`、`com.jiwei.ai.sse.SseEventSink`、`com.jiwei.ai.service.ConversationService`、`java.util.List`。
 
 - [ ] **Step 4: 编译验证**
 
-Run: `cd savory-life && mvn compile -pl savory-ai -DskipTests -q`
+Run: `cd jiwei-life && mvn compile -pl jiwei-ai -DskipTests -q`
 Expected: 成功
 
 - [ ] **Step 5: curl 冒烟（ADMIN 非流式）**
@@ -885,12 +885,12 @@ Expected: 返回含 events（应含 action 工具调用 + message 结论）。�
 
 - [ ] **Step 1: 全量编译**
 
-Run: `cd savory-life && mvn compile -pl savory-common,savory-pojo,savory-framework,savory-modules,savory-ai -DskipTests -q`
+Run: `cd jiwei-life && mvn compile -pl jiwei-common,jiwei-pojo,jiwei-framework,jiwei-modules,jiwei-ai -DskipTests -q`
 Expected: 无输出（成功）
 
 - [ ] **Step 2: 单元测试**
 
-Run: `cd savory-life && mvn test -pl savory-ai -Dtest='ListEventSinkTest,ConversationMessageLoaderTest' -DskipTests=false -q`
+Run: `cd jiwei-life && mvn test -pl jiwei-ai -Dtest='ListEventSinkTest,ConversationMessageLoaderTest' -DskipTests=false -q`
 Expected: 两个测试 PASS
 
 - [ ] **Step 3: 记录验收**
@@ -902,10 +902,10 @@ Expected: 两个测试 PASS
 ### Task 6: 管理端前端（新增 AgentAssistant + 模型切换 + 会话）
 
 **Files:**
-- Modify: `savory-admin/src/store/user.ts`
-- Create: `savory-admin/src/views/ai/AgentAssistant.vue`
-- Modify: `savory-admin/src/router/index.ts`
-- Modify: `savory-admin/src/views/layout/*`（侧边菜单项，按项目现有 Layout 结构）
+- Modify: `jiwei-admin/src/store/user.ts`
+- Create: `jiwei-admin/src/views/ai/AgentAssistant.vue`
+- Modify: `jiwei-admin/src/router/index.ts`
+- Modify: `jiwei-admin/src/views/layout/*`（侧边菜单项，按项目现有 Layout 结构）
 
 **Interfaces:**
 - Consumes: `GET /ai/conversation/list?userId=` → `[{_id, summary, updatedAt}]`；`GET /ai/admin/stream?message&empId&model&conversationId`（SSE）；`DELETE /ai/conversation/{id}`
@@ -913,7 +913,7 @@ Expected: 两个测试 PASS
 
 - [ ] **Step 1: store/user.ts 补 employeeId**
 
-在 `savory-admin/src/store/user.ts` 登录成功后追加 `localStorage.setItem('employeeId', res.data.id)`，并新增 `const employeeId = ref<string>(localStorage.getItem('employeeId') || '')` 暴露。参考现有 `name`/`setLogin` 实现。
+在 `jiwei-admin/src/store/user.ts` 登录成功后追加 `localStorage.setItem('employeeId', res.data.id)`，并新增 `const employeeId = ref<string>(localStorage.getItem('employeeId') || '')` 暴露。参考现有 `name`/`setLogin` 实现。
 
 - [ ] **Step 2: 创建 AgentAssistant.vue**
 
@@ -1103,7 +1103,7 @@ onMounted(loadConversations)
 .conv-item.active { background: var(--el-color-primary-light-9); }
 .conv-title { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-header { display: flex; justify-content: space-between; align-items: center; }
-.chat-messages { height: 460px; overflow-y: auto; padding: 12px; background: var(--savory-bg-page, #f7f6f2); border-radius: 8px; margin-bottom: 10px; }
+.chat-messages { height: 460px; overflow-y: auto; padding: 12px; background: var(--jiwei-bg-page, #f7f6f2); border-radius: 8px; margin-bottom: 10px; }
 .msg { margin-bottom: 10px; display: flex; }
 .msg-user { justify-content: flex-end; }
 .msg-bubble {
@@ -1134,7 +1134,7 @@ onMounted(loadConversations)
 
 - [ ] **Step 4: 路由 + 菜单**
 
-在 `savory-admin/src/router/index.ts` 的 MainLayout `children` 数组末尾加：
+在 `jiwei-admin/src/router/index.ts` 的 MainLayout `children` 数组末尾加：
 
 ```ts
 {
@@ -1156,7 +1156,7 @@ onMounted(loadConversations)
 
 - [ ] **Step 5: 前端构建验证**
 
-Run: `cd savory-life/savory-admin && npm run build`
+Run: `cd jiwei-life/jiwei-admin && npm run build`
 Expected: 构建成功
 
 ---
@@ -1164,7 +1164,7 @@ Expected: 构建成功
 ### Task 7: 商家端前端增强（模型切换 + 会话 + 工具展示）
 
 **Files:**
-- Modify: `savory-merchant/src/views/AiAssistant.vue`
+- Modify: `jiwei-merchant/src/views/AiAssistant.vue`
 
 **Interfaces:**
 - Consumes: `GET /ai/conversation/list?userId=`、`GET /ai/merchant/stream?question&empId&model&conversationId`、`DELETE /ai/conversation/{id}`
@@ -1280,7 +1280,7 @@ es.addEventListener('done', () => {
 
 - [ ] **Step 3: 前端构建验证**
 
-Run: `cd savory-life/savory-merchant && npm run build`
+Run: `cd jiwei-life/jiwei-merchant && npm run build`
 Expected: 构建成功
 
 ---
@@ -1288,8 +1288,8 @@ Expected: 构建成功
 ### Task 8: 用户端小程序接入非流式 Agent
 
 **Files:**
-- Modify: `savory-miniapp/src/api/index.js`
-- Modify: `savory-miniapp/src/pages/aichat/aichat.vue`
+- Modify: `jiwei-miniapp/src/api/index.js`
+- Modify: `jiwei-miniapp/src/pages/aichat/aichat.vue`
 
 **Interfaces:**
 - Consumes: `POST /ai/agent/chat` → `{conversationId, events:[{type,content}], finalAnswer}`
@@ -1369,7 +1369,7 @@ const send = async (text) => {
 
 - [ ] **Step 3: 小程序构建验证**
 
-Run: `cd savory-life/savory-miniapp && npm run build:mp-weixin`
+Run: `cd jiwei-life/jiwei-miniapp && npm run build:mp-weixin`
 Expected: Build complete
 
 ---
@@ -1382,15 +1382,15 @@ Expected: Build complete
 
 Run:
 ```bash
-cd savory-life/savory-admin && npm run build
-cd savory-life/savory-merchant && npm run build
-cd savory-life/savory-miniapp && npm run build:mp-weixin
+cd jiwei-life/jiwei-admin && npm run build
+cd jiwei-life/jiwei-merchant && npm run build
+cd jiwei-life/jiwei-miniapp && npm run build:mp-weixin
 ```
 Expected: 全部成功
 
 - [ ] **Step 2: 后端编译**
 
-Run: `cd savory-life && mvn compile -pl savory-common,savory-pojo,savory-framework,savory-modules,savory-ai -DskipTests -q`
+Run: `cd jiwei-life && mvn compile -pl jiwei-common,jiwei-pojo,jiwei-framework,jiwei-modules,jiwei-ai -DskipTests -q`
 Expected: 成功
 
 - [ ] **Step 3: 人工验收路径（交付用户）**

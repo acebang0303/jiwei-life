@@ -1,5 +1,5 @@
 -- ==========================================
--- 知味生活 · SavoryLife
+-- 吉味生活 · JiweiLife
 -- 一键初始化所有数据库
 -- 用法: mysql -u root -p < init_all.sql
 -- ==========================================
@@ -19,4 +19,4 @@ SOURCE 99_seed_data.sql;
 SOURCE 10_activity.sql;
 
 -- pgvector 请在 PostgreSQL 中单独执行:
--- psql -U postgres -d savory_ai -f 07_pgvector.sql
+-- psql -U postgres -d jiwei_ai -f 07_pgvector.sql

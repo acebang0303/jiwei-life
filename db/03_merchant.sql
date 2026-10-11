@@ -1,10 +1,10 @@
 -- ==========================================
--- 知味生活 · SavoryLife
--- 数据库: savory_merchant (商家数据库)
+-- 吉味生活 · JiweiLife
+-- 数据库: jiwei_merchant (商家数据库)
 -- ==========================================
 
-CREATE DATABASE IF NOT EXISTS savory_merchant DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE savory_merchant;
+CREATE DATABASE IF NOT EXISTS jiwei_merchant DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE jiwei_merchant;
 
 -- 店铺信息表（多商户）
 CREATE TABLE merchant_info (

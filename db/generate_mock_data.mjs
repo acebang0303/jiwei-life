@@ -1,4 +1,4 @@
-// 知味生活 · 大规模 mock 数据生成脚本
+// 吉味生活 · 大规模 mock 数据生成脚本
 // 用法: node db/generate_mock_data.mjs   → 生成 db/98_mock_data.sql
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -287,7 +287,7 @@ const cuisines = [
 // ============ 生成器 ============
 const lines = [];
 lines.push('-- ==========================================');
-lines.push('-- 知味生活 · 大规模 mock 数据（自动生成）');
+lines.push('-- 吉味生活 · 大规模 mock 数据（自动生成）');
 lines.push('-- ==========================================');
 lines.push('');
 
@@ -477,47 +477,47 @@ for (let r = 0; r < reviewCount; r++) {
 
 // ============ 输出 ============
 lines.push('-- 商户');
-lines.push('INSERT INTO savory_merchant.merchant_info (id, name, logo, description, address, longitude, latitude, phone, business_hours, delivery_range, status, emp_id, create_time, update_time) VALUES');
+lines.push('INSERT INTO jiwei_merchant.merchant_info (id, name, logo, description, address, longitude, latitude, phone, business_hours, delivery_range, status, emp_id, create_time, update_time) VALUES');
 lines.push(merchantRows.join(',\n') + ';');
 lines.push('');
 
 lines.push('-- 分类');
-lines.push('INSERT INTO savory_merchant.category (id, merchant_id, type, name, sort, status, create_time, update_time) VALUES');
+lines.push('INSERT INTO jiwei_merchant.category (id, merchant_id, type, name, sort, status, create_time, update_time) VALUES');
 lines.push(categoryRows.join(',\n') + ';');
 lines.push('');
 
 lines.push('-- 菜品');
-lines.push('INSERT INTO savory_merchant.dish (id, merchant_id, category_id, name, image, description, price, status, sales, create_time, update_time, create_user, update_user) VALUES');
+lines.push('INSERT INTO jiwei_merchant.dish (id, merchant_id, category_id, name, image, description, price, status, sales, create_time, update_time, create_user, update_user) VALUES');
 lines.push(dishRows.join(',\n') + ';');
 lines.push('');
 
 lines.push('-- 用户');
-lines.push('INSERT INTO savory_user.user (id, openid, nickname, avatar, phone, sex, growth_value, level, preference_tags, status, create_time, update_time) VALUES');
+lines.push('INSERT INTO jiwei_user.user (id, openid, nickname, avatar, phone, sex, growth_value, level, preference_tags, status, create_time, update_time) VALUES');
 lines.push(userRows.join(',\n') + ';');
 lines.push('');
 
 lines.push('-- 订单');
-lines.push('INSERT INTO savory_trade.orders (id, number, user_id, merchant_id, address_book_id, address_detail, amount, discount_amount, delivery_fee, pay_amount, pay_method, pay_status, status, transaction_id, remark, is_seckill, pay_time, create_time, update_time) VALUES');
+lines.push('INSERT INTO jiwei_trade.orders (id, number, user_id, merchant_id, address_book_id, address_detail, amount, discount_amount, delivery_fee, pay_amount, pay_method, pay_status, status, transaction_id, remark, is_seckill, pay_time, create_time, update_time) VALUES');
 lines.push(orderRows.join(',\n') + ';');
 lines.push('');
 
 lines.push('-- 订单明细');
-lines.push('INSERT INTO savory_trade.order_detail (order_id, name, image, dish_flavor, amount, number) VALUES');
+lines.push('INSERT INTO jiwei_trade.order_detail (order_id, name, image, dish_flavor, amount, number) VALUES');
 lines.push(detailRows.join(',\n') + ';');
 lines.push('');
 
 lines.push('-- 笔记');
-lines.push('INSERT INTO savory_social.note (id, user_id, title, content, merchant_id, topic_tags, location, like_count, comment_count, collect_count, view_count, audit_status, is_top, create_time, update_time) VALUES');
+lines.push('INSERT INTO jiwei_social.note (id, user_id, title, content, merchant_id, topic_tags, location, like_count, comment_count, collect_count, view_count, audit_status, is_top, create_time, update_time) VALUES');
 lines.push(noteRows.join(',\n') + ';');
 lines.push('');
 
 lines.push('-- 评价');
-lines.push('INSERT INTO savory_social.review (id, user_id, order_id, dish_id, rating, content, tags, is_ai_assisted, audit_status, like_count, create_time) VALUES');
+lines.push('INSERT INTO jiwei_social.review (id, user_id, order_id, dish_id, rating, content, tags, is_ai_assisted, audit_status, like_count, create_time) VALUES');
 lines.push(reviewRows.join(',\n') + ';');
 lines.push('');
 
 lines.push('-- 评论');
-lines.push('INSERT INTO savory_social.comment (id, note_id, user_id, parent_id, reply_to_user_id, content, like_count, create_time) VALUES');
+lines.push('INSERT INTO jiwei_social.comment (id, note_id, user_id, parent_id, reply_to_user_id, content, like_count, create_time) VALUES');
 lines.push(commentRows.join(',\n') + ';');
 lines.push('');
 

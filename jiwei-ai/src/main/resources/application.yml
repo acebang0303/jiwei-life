@@ -1,0 +1,82 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: jiwei-ai
+  profiles:
+    active: dev
+  config:
+    import: "optional:file:../.env[.properties]"
+  threads:
+    virtual:
+      enabled: true                        # AI服务使用虚拟线程处理并发请求
+  ai:
+    deepseek:
+      api-key: ${DEEPSEEK_API_KEY:}
+      chat:
+        options:
+          model: deepseek-chat
+          temperature: 0.7
+    qwen:
+      base-url: ${QIANWEN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      api-key: ${QIANWEN_API_KEY:}
+      model: qwen3.6-flash
+    openai:
+      base-url: ${KIMI_BASE_URL:https://api.moonshot.cn}
+      api-key: ${KIMI_API_KEY:}
+      chat:
+        options:
+          model: moonshot-v1-8k
+      embedding:
+        base-url: ${SILICONFLOW_BASE_URL:https://api.siliconflow.cn}
+        api-key: ${SILICONFLOW_API_KEY:}
+        options:
+          model: BAAI/bge-m3
+  data:
+    mongodb:
+      uri: mongodb://${JIWEI_MONGODB_HOST:localhost}:27017/jiwei_ai
+    redis:
+      host: ${JIWEI_REDIS_HOST:localhost}
+      port: 6380
+
+pgvector:
+  host: ${JIWEI_PGVECTOR_HOST:localhost}
+  port: ${JIWEI_PGVECTOR_PORT:5433}
+  database: jiwei_ai
+  username: postgres
+  password: ${JIWEI_PGVECTOR_PASSWORD}
+
+biz-db:
+  host: ${JIWEI_MYSQL_HOST:localhost}
+  port: ${JIWEI_MYSQL_PORT:3307}
+  username: ${JIWEI_MYSQL_USERNAME:root}
+  password: ${JIWEI_MYSQL_PASSWORD:root123}
+
+rocketmq:
+  name-server: ${JIWEI_ROCKETMQ_NAME_SERVER:localhost:9876}
+  consumer:
+    group: jiwei-ai-embedding-consumer
+
+baidu:
+  ak: ${BAIDU_AK:}
+weather:
+  api-key: ${WEATHER_API_KEY:}
+
+agent:
+  max-iterations: 8                       # ReAct 最大循环轮数
+  timeout-seconds: 30                     # Agent 超时时间
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.jiwei.ai: debug
+    org.springframework.ai: info

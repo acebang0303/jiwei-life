@@ -4,7 +4,7 @@
 -- ==========================================
 
 -- 活动表（首页轮播 banner 对应活动）
-CREATE TABLE IF NOT EXISTS savory_market.activity (
+CREATE TABLE IF NOT EXISTS jiwei_market.activity (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(100) NOT NULL COMMENT '活动标题',
     subtitle VARCHAR(200) COMMENT '活动副标题',
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS savory_market.activity (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT ='首页活动';
 
 -- 用户行为记录（用于 AI 个性化推荐）
-CREATE TABLE IF NOT EXISTS savory_user.user_behavior (
+CREATE TABLE IF NOT EXISTS jiwei_user.user_behavior (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL COMMENT '用户ID',
     type VARCHAR(30) NOT NULL COMMENT 'LIKE_NOTE/COLLECT_NOTE/COMMENT_NOTE/VIEW_MERCHANT',
@@ -28,33 +28,33 @@ CREATE TABLE IF NOT EXISTS savory_user.user_behavior (
 -- ==========================================
 -- 秒杀活动时间修正为"进行中"（种子数据时间已过期）
 -- ==========================================
-UPDATE savory_market.seckill_activity SET
+UPDATE jiwei_market.seckill_activity SET
     status = 1,
     start_time = DATE_SUB(NOW(), INTERVAL 2 HOUR),
     end_time = DATE_ADD(NOW(), INTERVAL 22 HOUR)
 WHERE id = 1;
 
-UPDATE savory_market.seckill_activity SET
+UPDATE jiwei_market.seckill_activity SET
     status = 1,
     start_time = DATE_SUB(NOW(), INTERVAL 1 HOUR),
     end_time = DATE_ADD(NOW(), INTERVAL 2 HOUR)
 WHERE id = 2;
 
-UPDATE savory_market.seckill_activity SET
+UPDATE jiwei_market.seckill_activity SET
     status = 1,
     start_time = NOW(),
     end_time = DATE_ADD(NOW(), INTERVAL 3 HOUR)
 WHERE id = 3;
 
 -- 新增一场进行中的秒杀（蜀味川菜·水煮牛肉）
-INSERT IGNORE INTO savory_market.seckill_activity
+INSERT IGNORE INTO jiwei_market.seckill_activity
 (id, name, dish_id, seckill_price, stock, limit_per_user, start_time, end_time, status, create_time) VALUES
 (4, '整点秒杀-水煮牛肉', 15, 29.90, 30, 1, DATE_SUB(NOW(), INTERVAL 30 MINUTE), DATE_ADD(NOW(), INTERVAL 5 HOUR), 1, NOW());
 
 -- ==========================================
 -- 活动种子数据（首页轮播 4 个活动）
 -- ==========================================
-INSERT IGNORE INTO savory_market.activity
+INSERT IGNORE INTO jiwei_market.activity
 (id, title, subtitle, bg_color, type, target_id, sort, status, create_time, update_time) VALUES
 (1, '张记面馆·招牌面免费升级', '进店领「满30减8」新人券，加量不加价', 'linear-gradient(135deg, #FF7A3D, #F06A2E)', 1, 1, 1, 1, NOW(), NOW()),
 (2, '午市秒杀 15.8 元起', '红烧牛肉面秒杀进行中，手慢无！', 'linear-gradient(135deg, #FFB98A, #FF7A3D)', 2, 1, 2, 1, NOW(), NOW()),
@@ -64,7 +64,7 @@ INSERT IGNORE INTO savory_market.activity
 -- ==========================================
 -- 用户行为种子数据（供 AI 推荐引擎构建画像）
 -- ==========================================
-INSERT IGNORE INTO savory_user.user_behavior (user_id, type, target_id, create_time) VALUES
+INSERT IGNORE INTO jiwei_user.user_behavior (user_id, type, target_id, create_time) VALUES
 -- 用户1(吃货小陈): 喜欢川菜/烧烤，点赞收藏了蜀味、烧烤店铺的笔记，浏览过店铺
 (1, 'LIKE_NOTE', 1, NOW()), (1, 'COLLECT_NOTE', 1, NOW()),
 (1, 'VIEW_MERCHANT', 3, NOW()), (1, 'VIEW_MERCHANT', 2, NOW()), (1, 'VIEW_MERCHANT', 1, NOW()),
@@ -83,7 +83,7 @@ INSERT IGNORE INTO savory_user.user_behavior (user_id, type, target_id, create_t
 -- ==========================================
 -- 补充笔记（让 Feed/热门更丰富，全部关联真实店铺与用户）
 -- ==========================================
-INSERT IGNORE INTO savory_social.note
+INSERT IGNORE INTO jiwei_social.note
 (id, user_id, title, content, images, merchant_id, topic_tags, location, like_count, comment_count, collect_count, view_count, audit_status, is_top, create_time, update_time) VALUES
 (330, 2, '张记面馆的红烧牛肉面太顶了！', '一碗面治愈加班夜。牛肉炖得酥烂，汤头浓郁，面条筋道。加一份红油耳片，绝配！价格也实在，人均30吃到撑。', '["https://api.dicebear.com/7.x/icons/svg?seed=beef","https://api.dicebear.com/7.x/icons/svg?seed=ear"]', 1, '["面馆","杭城美食"]', '杭州·上城区', 68, 9, 22, 890, 1, 0, NOW(), NOW()),
 (331, 3, '深夜烧烤局：老王烧烤实测', '晚上十点来依旧满座，羊肉串肥瘦相间入口爆汁，生蚝个头大又新鲜，配冰镇啤酒绝了。人均80，值得再来。', '["https://api.dicebear.com/7.x/icons/svg?seed=lamb","https://api.dicebear.com/7.x/icons/svg?seed=oyster","https://api.dicebear.com/7.x/icons/svg?seed=beer"]', 2, '["烧烤","深夜食堂"]', '杭州·拱墅区', 156, 23, 45, 2100, 1, 1, NOW(), NOW()),
@@ -92,10 +92,10 @@ INSERT IGNORE INTO savory_social.note
 (334, 4, '打工人工作餐：张记盖浇饭', '宫保鸡丁饭和鱼香肉丝饭换着吃，出餐快，分量足，午休时间刚好。番茄鸡蛋面也推荐，汤鲜面滑。', '["https://api.dicebear.com/7.x/icons/svg?seed=chicken","https://api.dicebear.com/7.x/icons/svg?seed=tomato"]', 1, '["工作餐","面食"]', '杭州·上城区', 21, 4, 8, 320, 1, 0, NOW(), NOW());
 
 -- 同步补充行为：热门笔记的点赞记录（让 like_count 与 note_like 一致）
-INSERT IGNORE INTO savory_social.note_like (note_id, user_id, create_time) VALUES
+INSERT IGNORE INTO jiwei_social.note_like (note_id, user_id, create_time) VALUES
 (330, 1, NOW()), (330, 3, NOW()), (331, 1, NOW()), (331, 4, NOW()), (331, 5, NOW()),
 (332, 2, NOW()), (332, 3, NOW()), (333, 2, NOW()), (333, 1, NOW()), (334, 3, NOW());
 
 -- 补充关注关系：让新用户点关注有真实反馈
-INSERT IGNORE INTO savory_social.follow (follower_id, followee_id, create_time) VALUES
+INSERT IGNORE INTO jiwei_social.follow (follower_id, followee_id, create_time) VALUES
 (1, 2, NOW()), (1, 5, NOW()), (2, 1, NOW()), (3, 1, NOW()), (3, 2, NOW());

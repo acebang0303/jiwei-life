@@ -1,8 +1,8 @@
 -- 为现有笔记补齐评论数据（仅增量，不影响已存在数据）
 -- 1) 清理上次生成的 mock 评论(id>=5000)，保证可重复执行且不误删用户数据
-DELETE FROM savory_social.comment WHERE id >= 5000;
+DELETE FROM jiwei_social.comment WHERE id >= 5000;
 
-INSERT INTO savory_social.comment (id, note_id, user_id, parent_id, reply_to_user_id, content, like_count, create_time) VALUES
+INSERT INTO jiwei_social.comment (id, note_id, user_id, parent_id, reply_to_user_id, content, like_count, create_time) VALUES
 (5000,100,204,NULL,NULL,'这家店好停车吗',43,'2026-07-22 01:46:00'),
 (5001,100,284,NULL,NULL,'下次去杭州就去这家',32,'2026-07-21 05:34:00'),
 (5002,101,304,NULL,NULL,'性价比看起来很高诶',34,'2026-07-06 10:49:00'),
@@ -2226,6 +2226,6 @@ INSERT INTO savory_social.comment (id, note_id, user_id, parent_id, reply_to_use
 (7220,319,156,7210,7210,'安排！一起约起来',16,'2026-08-11 18:50:00');
 
 -- 2) 校正所有笔记的 comment_count = 实际评论条数
-UPDATE savory_social.note n SET n.comment_count = (SELECT COUNT(*) FROM savory_social.comment c WHERE c.note_id = n.id);
+UPDATE jiwei_social.note n SET n.comment_count = (SELECT COUNT(*) FROM jiwei_social.comment c WHERE c.note_id = n.id);
 
-SELECT note_id, COUNT(*) cnt FROM savory_social.comment GROUP BY note_id ORDER BY cnt DESC LIMIT 10;
+SELECT note_id, COUNT(*) cnt FROM jiwei_social.comment GROUP BY note_id ORDER BY cnt DESC LIMIT 10;

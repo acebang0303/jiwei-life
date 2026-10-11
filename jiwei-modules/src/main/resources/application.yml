@@ -1,0 +1,118 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: jiwei-modules
+  profiles:
+    active: dev
+  config:
+    import: "optional:file:../.env[.properties]"
+  threads:
+    virtual:
+      enabled: true                        # JDK 21 虚拟线程
+  datasource:
+    dynamic:
+      primary: auth                        # 默认数据源
+      strict: false                        # 未匹配到数据源时回退到 primary
+      hikari:
+        driver-class-name: com.mysql.cj.jdbc.Driver
+        maximum-pool-size: 20
+        minimum-idle: 5
+      datasource:
+        auth:
+          url: jdbc:mysql://localhost:3307/jiwei_auth?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowMultiQueries=true
+          username: root
+          password: ${JIWEI_MYSQL_PASSWORD:root123}
+        user:
+          url: jdbc:mysql://localhost:3307/jiwei_user?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+          username: root
+          password: ${JIWEI_MYSQL_PASSWORD:root123}
+        merchant:
+          url: jdbc:mysql://localhost:3307/jiwei_merchant?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+          username: root
+          password: ${JIWEI_MYSQL_PASSWORD:root123}
+        trade:
+          url: jdbc:mysql://localhost:3307/jiwei_trade?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+          username: root
+          password: ${JIWEI_MYSQL_PASSWORD:root123}
+        market:
+          url: jdbc:mysql://localhost:3307/jiwei_market?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+          username: root
+          password: ${JIWEI_MYSQL_PASSWORD:root123}
+        social:
+          url: jdbc:mysql://localhost:3307/jiwei_social?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+          username: root
+          password: ${JIWEI_MYSQL_PASSWORD:root123}
+  data:
+    redis:
+      host: ${JIWEI_REDIS_HOST:localhost}
+      port: ${JIWEI_REDIS_PORT:6380}
+      password: ${JIWEI_REDIS_PASSWORD:}
+      database: ${JIWEI_REDIS_DATABASE:0}
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.jiwei.pojo.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+rocketmq:
+  name-server: ${JIWEI_ROCKETMQ_NAME_SERVER:localhost:9876}
+  producer:
+    group: jiwei-producer-group
+
+jiwei:
+  jwt:
+    admin-secret-key: ${JWT_ADMIN_SECRET}
+    admin-ttl: 7200000
+    admin-token-name: token
+    user-secret-key: ${JWT_USER_SECRET}
+    user-ttl: 604800000                     # 7天
+    user-token-name: Authorization
+  alioss:
+    endpoint: ${OSS_ENDPOINT}
+    access-key-id: ${OSS_ACCESS_KEY}
+    access-key-secret: ${OSS_ACCESS_SECRET}
+    bucket-name: jiwei-life
+  wechat:
+    appid: ${WECHAT_APPID}
+    secret: ${WECHAT_SECRET}
+    mchid: ${WECHAT_MCHID}
+    api-v3-key: ${WECHAT_API_KEY}
+    notify-url: https://your-domain/api/notify/pay
+  baidu:
+    ak: ${BAIDU_AK}
+  ai:
+    base-url: https://api.deepseek.com/v1
+    api-key: ${DEEPSEEK_API_KEY}
+    model: deepseek-chat
+    service-url: ${AI_SERVICE_URL:http://localhost:8087}
+
+like:
+  hot:
+    window-seconds: 2          # 热点评估窗口（秒），HotKeyDetector 评估周期
+    threshold-per-window: 30   # 窗口内操作数阈值，超过则进入热点模式
+    cooldown-cycles: 5         # 连续低于阈值的冷却周期数，达标则退出热点
+    flush-interval-ms: 1500    # 本地聚合刷回 Redis 间隔（毫秒）
+  consumer:
+    interval-ms: 1000          # 攒批消费窥探间隔（毫秒）
+    batch-size: 500            # 攒批触发阈值（条数）
+    max-drain: 5000            # 单次窥探最大事件数
+  reconcile-interval-ms: 30000 # 兜底对账间隔（毫秒）

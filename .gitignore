@@ -34,4 +34,4 @@ dist/
 .env.local
 .env.*
 !.env.example
-savory-modules/src/test/jmeter/tokens.csv
+jiwei-modules/src/test/jmeter/tokens.csv

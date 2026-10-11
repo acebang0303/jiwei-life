@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 把秒杀系统的完整链路（自研熔断器 → 失败分类消费者 → 三道对账 → 限流降级 → 库存预热 → 乐观锁防超卖）注入 savorylife 现有的「只有 Lua 预扣」的秒杀骨架；同时把短链项目（MurmurHash+Base62+布隆防穿透+Caffeine 三级链路）作为营销辅助能力纳入 market。
+**Goal:** 把秒杀系统的完整链路（自研熔断器 → 失败分类消费者 → 三道对账 → 限流降级 → 库存预热 → 乐观锁防超卖）注入 JiweiLife 现有的「只有 Lua 预扣」的秒杀骨架；同时把短链项目（MurmurHash+Base62+布隆防穿透+Caffeine 三级链路）作为营销辅助能力纳入 market。
 
 **Architecture:** Redis 读写统一走 `RedisExecutor`（内部经三态熔断器 `RedisCircuitBreaker` 保护，只统计基础设施异常）。秒杀链路：Lua 预扣 → RocketMQ 异步落库（失败分类消费者：确定性失败回滚+确认、瞬时失败重试一次）→ 周期对账（库存/缓存/滞留订单三道，DB 为唯一账本）→ 限流切面（Redisson RRateLimiter + 本地令牌桶降级）。`seckill_activity` 加 `version`+`sold`，DB 兜底扣减走 `stock >= n` CAS + 乐观锁双保险。短链：`short_link` 表 + Caffeine 缓存 + 手写布隆过滤器 + 固定窗口限流。
 
@@ -16,7 +16,7 @@
 
 ## Global Constraints
 
-- 包名统一 `com.savory.market`；秒杀子包 `com.savory.market.seckill.*`；短链子包 `com.savory.market.shortlink.*`
+- 包名统一 `com.jiwei.market`；秒杀子包 `com.jiwei.market.seckill.*`；短链子包 `com.jiwei.market.shortlink.*`
 - RocketMQ 用原生 `rocketmq-client`（`DefaultMQProducer`/`DefaultMQPushConsumer`），对齐 `EmbeddingConsumer` 风格
 - **已知瑕疵必须在落地时修复**（设计文档 §6）：
   1. 熔断器「固定窗口简化版」→ 保留三态语义但注明窗口为环形计数近似，可接受（不引入 Resilience4j 额外依赖）
@@ -30,43 +30,43 @@
 ## File Structure 概览
 
 **新建（秒杀）：**
-- `com/savory/market/seckill/breaker/RedisCircuitBreaker.java` — 三态熔断器
-- `com/savory/market/seckill/cache/RedisExecutor.java` — 熔断保护的 Redis 执行器
-- `com/savory/market/seckill/config/StockWarmUpRunner.java` — 库存预热
-- `com/savory/market/seckill/mq/SeckillOrderCreateConsumer.java` — 失败分类消费者（RocketMQ）
-- `com/savory/market/seckill/reconcile/ReconcileService.java` — 三道对账
-- `com/savory/market/seckill/ratelimit/RateLimit.java`、`RateLimitAspect.java` — 限流切面
+- `com/jiwei/market/seckill/breaker/RedisCircuitBreaker.java` — 三态熔断器
+- `com/jiwei/market/seckill/cache/RedisExecutor.java` — 熔断保护的 Redis 执行器
+- `com/jiwei/market/seckill/config/StockWarmUpRunner.java` — 库存预热
+- `com/jiwei/market/seckill/mq/SeckillOrderCreateConsumer.java` — 失败分类消费者（RocketMQ）
+- `com/jiwei/market/seckill/reconcile/ReconcileService.java` — 三道对账
+- `com/jiwei/market/seckill/ratelimit/RateLimit.java`、`RateLimitAspect.java` — 限流切面
 
 **新建（短链）：**
-- `com/savory/market/shortlink/service/ShortLinkService.java`
-- `com/savory/market/shortlink/component/ShortCodeBloomFilter.java`、`SimpleBloomFilter.java`
-- `com/savory/market/shortlink/component/CreateRateLimiter.java`
-- `com/savory/market/shortlink/util/Base62.java`、`MurmurHash.java`
-- `com/savory/market/shortlink/mapper/ShortLinkMapper.java`
-- `com/savory/market/shortlink/controller/ShortLinkController.java`、`RedirectController.java`
+- `com/jiwei/market/shortlink/service/ShortLinkService.java`
+- `com/jiwei/market/shortlink/component/ShortCodeBloomFilter.java`、`SimpleBloomFilter.java`
+- `com/jiwei/market/shortlink/component/CreateRateLimiter.java`
+- `com/jiwei/market/shortlink/util/Base62.java`、`MurmurHash.java`
+- `com/jiwei/market/shortlink/mapper/ShortLinkMapper.java`
+- `com/jiwei/market/shortlink/controller/ShortLinkController.java`、`RedirectController.java`
 
 **修改：**
-- `savory-pojo/.../pojo/entity/SeckillActivity.java` — 加 `version`/`sold`/`updateTime` 字段
-- `savory-pojo/.../pojo/entity/ShortLink.java` — 新增实体
-- `savory-pojo/.../pojo/entity/Orders.java` — 加 `seckillActivityId` 字段
-- `savory-life/db/05_market.sql` — 加 `version`/`sold`/`update_time` 列、`short_link` 表、orders 唯一索引
-- `savory-modules/.../market/service/impl/SeckillServiceImpl.java` — Lua 限购修复 + 熔断/限流接入 + `deductStock`/`restoreStock`/`revertRedisStock`
-- `savory-modules/.../market/mapper/SeckillActivityMapper.java` — 加 CAS 扣减 SQL
-- `savory-modules/.../trade/service/OrderService.java`（+ `impl/OrderServiceImpl.java`）— 加 `createSeckillOrder`（trade 库建单）
-- `savory-framework/src/main/java/com/savory/framework/config/MyBatisPlusConfiguration.java` — 开启乐观锁插件
+- `jiwei-pojo/.../pojo/entity/SeckillActivity.java` — 加 `version`/`sold`/`updateTime` 字段
+- `jiwei-pojo/.../pojo/entity/ShortLink.java` — 新增实体
+- `jiwei-pojo/.../pojo/entity/Orders.java` — 加 `seckillActivityId` 字段
+- `jiwei-life/db/05_market.sql` — 加 `version`/`sold`/`update_time` 列、`short_link` 表、orders 唯一索引
+- `jiwei-modules/.../market/service/impl/SeckillServiceImpl.java` — Lua 限购修复 + 熔断/限流接入 + `deductStock`/`restoreStock`/`revertRedisStock`
+- `jiwei-modules/.../market/mapper/SeckillActivityMapper.java` — 加 CAS 扣减 SQL
+- `jiwei-modules/.../trade/service/OrderService.java`（+ `impl/OrderServiceImpl.java`）— 加 `createSeckillOrder`（trade 库建单）
+- `jiwei-framework/src/main/java/com/jiwei/framework/config/MyBatisPlusConfiguration.java` — 开启乐观锁插件
 
 **测试：**
-- `savory-modules/src/test/java/com/savory/market/seckill/RedisCircuitBreakerTest.java`
-- `savory-modules/src/test/java/com/savory/market/shortlink/Base62Test.java`
+- `jiwei-modules/src/test/java/com/jiwei/market/seckill/RedisCircuitBreakerTest.java`
+- `jiwei-modules/src/test/java/com/jiwei/market/shortlink/Base62Test.java`
 
 ---
 
 ## Task 1: Redis 三态熔断器 + 受保护执行器
 
 **Files:**
-- Create: `com/savory/market/seckill/breaker/RedisCircuitBreaker.java`
-- Create: `com/savory/market/seckill/cache/RedisExecutor.java`
-- Create: `com/savory/market/seckill/config/SeckillProperties.java`
+- Create: `com/jiwei/market/seckill/breaker/RedisCircuitBreaker.java`
+- Create: `com/jiwei/market/seckill/cache/RedisExecutor.java`
+- Create: `com/jiwei/market/seckill/config/SeckillProperties.java`
 - Test: `RedisCircuitBreakerTest.java`
 
 **Interfaces:**
@@ -78,7 +78,7 @@
 - [ ] **Step 1: 创建 SeckillProperties（熔断/对账配置）**
 
 ```java
-package com.savory.market.seckill.config;
+package com.jiwei.market.seckill.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -110,7 +110,7 @@ public class SeckillProperties {
 
 - [ ] **Step 2: 移植 RedisCircuitBreaker**
 
-从源 `D:\qiuzhao\seckill-system\src\main\java\com\seckill\breaker\RedisCircuitBreaker.java` 移植，包名改 `com.savory.market.seckill.breaker`，配置改注入 `SeckillProperties.Breaker`。**核心逻辑不变**（CLOSED→OPEN→HALF_OPEN 三态、只统计基础设施异常 `RedisConnectionFailureException`/`QueryTimeoutException`/`RedisSystemException`/`SocketException`）：
+从源 `D:\qiuzhao\seckill-system\src\main\java\com\seckill\breaker\RedisCircuitBreaker.java` 移植，包名改 `com.jiwei.market.seckill.breaker`，配置改注入 `SeckillProperties.Breaker`。**核心逻辑不变**（CLOSED→OPEN→HALF_OPEN 三态、只统计基础设施异常 `RedisConnectionFailureException`/`QueryTimeoutException`/`RedisSystemException`/`SocketException`）：
 
 ```java
 @Slf4j
@@ -152,7 +152,7 @@ public class RedisCircuitBreaker {
 
 - [ ] **Step 3: 移植 RedisExecutor**
 
-从源 `RedisExecutor.java` 移植，包名改，`RedisTemplate` 换 `StringRedisTemplate`（savorylife market 用 `RedisTemplate<String, Object>`，此处统一用 `StringRedisTemplate` 存库存计数）：
+从源 `RedisExecutor.java` 移植，包名改，`RedisTemplate` 换 `StringRedisTemplate`（JiweiLife market 用 `RedisTemplate<String, Object>`，此处统一用 `StringRedisTemplate` 存库存计数）：
 
 ```java
 @Component
@@ -203,10 +203,10 @@ class RedisCircuitBreakerTest {
 
 - [ ] **Step 5: 编译验证 + Commit**
 
-Run: `cd savory-life && mvn compile -pl savory-pojo,savory-common,savory-framework,savory-modules -DskipTests`
+Run: `cd jiwei-life && mvn compile -pl jiwei-pojo,jiwei-common,jiwei-framework,jiwei-modules -DskipTests`
 
 ```bash
-git add savory-modules/src/main/java/com/savory/market/seckill/breaker/ savory-modules/src/main/java/com/savory/market/seckill/cache/ savory-modules/src/main/java/com/savory/market/seckill/config/SeckillProperties.java savory-modules/src/test/java/com/savory/market/seckill/
+git add jiwei-modules/src/main/java/com/jiwei/market/seckill/breaker/ jiwei-modules/src/main/java/com/jiwei/market/seckill/cache/ jiwei-modules/src/main/java/com/jiwei/market/seckill/config/SeckillProperties.java jiwei-modules/src/test/java/com/jiwei/market/seckill/
 git commit -m "feat(market): 自研 Redis 三态熔断器 + 受保护执行器"
 ```
 
@@ -215,12 +215,12 @@ git commit -m "feat(market): 自研 Redis 三态熔断器 + 受保护执行器"
 ## Task 2: 秒杀表改造（乐观锁 + 防超卖 + 防重）+ 库存预热
 
 **Files:**
-- Modify: `savory-pojo/.../pojo/entity/SeckillActivity.java`
-- Modify: `savory-pojo/.../pojo/entity/Orders.java`
-- Modify: `savory-life/db/05_market.sql`
-- Create: `com/savory/market/seckill/config/StockWarmUpRunner.java`
-- Modify: `savory-modules/.../market/mapper/SeckillActivityMapper.java`
-- Modify: `savory-framework/src/main/java/com/savory/framework/config/MyBatisPlusConfiguration.java`（开启乐观锁插件）
+- Modify: `jiwei-pojo/.../pojo/entity/SeckillActivity.java`
+- Modify: `jiwei-pojo/.../pojo/entity/Orders.java`
+- Modify: `jiwei-life/db/05_market.sql`
+- Create: `com/jiwei/market/seckill/config/StockWarmUpRunner.java`
+- Modify: `jiwei-modules/.../market/mapper/SeckillActivityMapper.java`
+- Modify: `jiwei-framework/src/main/java/com/jiwei/framework/config/MyBatisPlusConfiguration.java`（开启乐观锁插件）
 
 **Interfaces:**
 - Consumes: `RedisExecutor`（Task 1）
@@ -257,7 +257,7 @@ public class SeckillActivity {
 }
 ```
 
-> **必须同步开启乐观锁插件**：`savory-framework` 的 `MyBatisPlusConfiguration`（`com.savory.framework.config.MyBatisPlusConfiguration`）目前只注册了分页插件，`@Version` 注解不会自动生效。需在 `mybatisPlusInterceptor()` 里补 `interceptor.addInnerInterceptor(new OptimisticLockerInnerInterceptor())`（`com.baomidou.mybatisplus.extension.plugins.inner.OptimisticLockerInnerInterceptor`），否则 `updateById` 不会带上 `WHERE version = ?`。该改动随本 Task 的 Commit 一起提交（见 Step 6 的 `git add` 清单）。
+> **必须同步开启乐观锁插件**：`jiwei-framework` 的 `MyBatisPlusConfiguration`（`com.jiwei.framework.config.MyBatisPlusConfiguration`）目前只注册了分页插件，`@Version` 注解不会自动生效。需在 `mybatisPlusInterceptor()` 里补 `interceptor.addInnerInterceptor(new OptimisticLockerInnerInterceptor())`（`com.baomidou.mybatisplus.extension.plugins.inner.OptimisticLockerInnerInterceptor`），否则 `updateById` 不会带上 `WHERE version = ?`。该改动随本 Task 的 Commit 一起提交（见 Step 6 的 `git add` 清单）。
 
 - [ ] **Step 2: Orders 加 seckillActivityId 字段**
 
@@ -307,7 +307,7 @@ public interface SeckillActivityMapper extends BaseMapper<SeckillActivity> {
 
 - [ ] **Step 5: 移植 StockWarmUpRunner（去 ES 部分）**
 
-从源 `StockWarmUpRunner.java` 移植，**删除 ES 商品索引预热**（savorylife 无 ES），保留库存预热：
+从源 `StockWarmUpRunner.java` 移植，**删除 ES 商品索引预热**（JiweiLife 无 ES），保留库存预热：
 
 ```java
 @Component
@@ -335,10 +335,10 @@ public class StockWarmUpRunner implements ApplicationRunner {
 
 - [ ] **Step 6: 编译验证 + Commit**
 
-Run: `cd savory-life && mvn compile -pl savory-pojo,savory-common,savory-framework,savory-modules -DskipTests`
+Run: `cd jiwei-life && mvn compile -pl jiwei-pojo,jiwei-common,jiwei-framework,jiwei-modules -DskipTests`
 
 ```bash
-git add savory-pojo/src/main/java/com/savory/pojo/entity/SeckillActivity.java savory-pojo/src/main/java/com/savory/pojo/entity/Orders.java savory-life/db/05_market.sql savory-life/db/04_trade.sql savory-modules/src/main/java/com/savory/market/seckill/config/StockWarmUpRunner.java savory-modules/src/main/java/com/savory/market/mapper/SeckillActivityMapper.java savory-framework/src/main/java/com/savory/framework/config/MyBatisPlusConfiguration.java
+git add jiwei-pojo/src/main/java/com/jiwei/pojo/entity/SeckillActivity.java jiwei-pojo/src/main/java/com/jiwei/pojo/entity/Orders.java jiwei-life/db/05_market.sql jiwei-life/db/04_trade.sql jiwei-modules/src/main/java/com/jiwei/market/seckill/config/StockWarmUpRunner.java jiwei-modules/src/main/java/com/jiwei/market/mapper/SeckillActivityMapper.java jiwei-framework/src/main/java/com/jiwei/framework/config/MyBatisPlusConfiguration.java
 git commit -m "feat(market): 秒杀表加乐观锁/防超卖/防重 + 库存预热"
 ```
 
@@ -347,11 +347,11 @@ git commit -m "feat(market): 秒杀表加乐观锁/防超卖/防重 + 库存预�
 ## Task 3: 秒杀失败分类消费者 + 完整落库链路
 
 **Files:**
-- Create: `com/savory/market/seckill/mq/SeckillOrderCreateConsumer.java`
-- Create: `com/savory/market/seckill/mq/SeckillMessage.java`（record）
-- Modify: `savory-modules/.../market/service/impl/SeckillServiceImpl.java`（Lua 限购修复 + 发消息）
-- Modify: `savory-modules/.../trade/mq/OrderMessageProducer.java`（接真实 `DefaultMQProducer`）
-- Modify: `savory-modules/.../trade/service/OrderService.java`（+ `impl/OrderServiceImpl.java`，加 `createSeckillOrder`）
+- Create: `com/jiwei/market/seckill/mq/SeckillOrderCreateConsumer.java`
+- Create: `com/jiwei/market/seckill/mq/SeckillMessage.java`（record）
+- Modify: `jiwei-modules/.../market/service/impl/SeckillServiceImpl.java`（Lua 限购修复 + 发消息）
+- Modify: `jiwei-modules/.../trade/mq/OrderMessageProducer.java`（接真实 `DefaultMQProducer`）
+- Modify: `jiwei-modules/.../trade/service/OrderService.java`（+ `impl/OrderServiceImpl.java`，加 `createSeckillOrder`）
 
 **Interfaces:**
 - Consumes: `DefaultMQProducer`（框架 bean）、`SeckillActivityMapper.deductStock`（Task 2）
@@ -484,10 +484,10 @@ public class SeckillOrderCreateConsumer {
 
 - [ ] **Step 6: 编译验证 + Commit**
 
-Run: `cd savory-life && mvn compile -pl savory-pojo,savory-common,savory-framework,savory-modules -DskipTests`
+Run: `cd jiwei-life && mvn compile -pl jiwei-pojo,jiwei-common,jiwei-framework,jiwei-modules -DskipTests`
 
 ```bash
-git add savory-modules/src/main/java/com/savory/market/seckill/mq/ savory-modules/src/main/java/com/savory/market/service/impl/SeckillServiceImpl.java savory-modules/src/main/java/com/savory/trade/mq/OrderMessageProducer.java savory-modules/src/main/java/com/savory/trade/service/OrderService.java savory-modules/src/main/java/com/savory/trade/service/impl/OrderServiceImpl.java
+git add jiwei-modules/src/main/java/com/jiwei/market/seckill/mq/ jiwei-modules/src/main/java/com/jiwei/market/service/impl/SeckillServiceImpl.java jiwei-modules/src/main/java/com/jiwei/trade/mq/OrderMessageProducer.java jiwei-modules/src/main/java/com/jiwei/trade/service/OrderService.java jiwei-modules/src/main/java/com/jiwei/trade/service/impl/OrderServiceImpl.java
 git commit -m "feat(market): 秒杀失败分类消费者 + Lua 真实限购 + DB 兜底落库"
 ```
 
@@ -496,8 +496,8 @@ git commit -m "feat(market): 秒杀失败分类消费者 + Lua 真实限购 + DB
 ## Task 4: 秒杀三道对账（DB 为唯一账本）
 
 **Files:**
-- Create: `com/savory/market/seckill/reconcile/ReconcileService.java`
-- Create: `com/savory/market/seckill/reconcile/ReconcileController.java`（手动触发 + 查看报告）
+- Create: `com/jiwei/market/seckill/reconcile/ReconcileService.java`
+- Create: `com/jiwei/market/seckill/reconcile/ReconcileController.java`（手动触发 + 查看报告）
 
 **Interfaces:**
 - Consumes: `RedisExecutor`（Task 1）、`SeckillActivityMapper`、`OrderMapper`（或 trade 依赖）
@@ -507,7 +507,7 @@ git commit -m "feat(market): 秒杀失败分类消费者 + Lua 真实限购 + DB
 
 - [ ] **Step 1: 移植 ReconcileService（三道对账）**
 
-从源 `ReconcileService.java` 移植，适配 savorylife 字段（`dishId`/`seckillPrice`），**第二道活动缓存对账简化为库存键为主**（savorylife 秒杀活动缓存较薄，聚焦库存/滞留订单）：
+从源 `ReconcileService.java` 移植，适配 JiweiLife 字段（`dishId`/`seckillPrice`），**第二道活动缓存对账简化为库存键为主**（JiweiLife 秒杀活动缓存较薄，聚焦库存/滞留订单）：
 
 ```java
 @Slf4j
@@ -599,10 +599,10 @@ public class ReconcileController {
 
 - [ ] **Step 3: 编译验证 + Commit**
 
-Run: `cd savory-life && mvn compile -pl savory-pojo,savory-common,savory-framework,savory-modules -DskipTests`
+Run: `cd jiwei-life && mvn compile -pl jiwei-pojo,jiwei-common,jiwei-framework,jiwei-modules -DskipTests`
 
 ```bash
-git add savory-modules/src/main/java/com/savory/market/seckill/reconcile/
+git add jiwei-modules/src/main/java/com/jiwei/market/seckill/reconcile/
 git commit -m "feat(market): 秒杀三道对账（Redis库存vsDB + 滞留订单兜底关单）"
 ```
 
@@ -611,9 +611,9 @@ git commit -m "feat(market): 秒杀三道对账（Redis库存vsDB + 滞留订单
 ## Task 5: 限流降级切面（Redisson RRateLimiter + 本地令牌桶）
 
 **Files:**
-- Create: `com/savory/market/seckill/ratelimit/RateLimit.java`
-- Create: `com/savory/market/seckill/ratelimit/RateLimitAspect.java`
-- Modify: `savory-modules/.../market/controller/user/SeckillBuyController.java`（加 `@RateLimit` 注解）
+- Create: `com/jiwei/market/seckill/ratelimit/RateLimit.java`
+- Create: `com/jiwei/market/seckill/ratelimit/RateLimitAspect.java`
+- Modify: `jiwei-modules/.../market/controller/user/SeckillBuyController.java`（加 `@RateLimit` 注解）
 
 **Interfaces:**
 - Consumes: `RedissonClient`
@@ -637,7 +637,7 @@ public @interface RateLimit {
 
 - [ ] **Step 2: 移植 RateLimitAspect**
 
-从源 `RateLimitAspect.java` 移植，包名改，注解名改 `com.savory.market.seckill.ratelimit.RateLimit`，异常改 `OrderBusinessException`。核心逻辑不变：Redisson `RRateLimiter` 令牌桶 + Redis 故障降级本地 `LocalTokenBucket`。
+从源 `RateLimitAspect.java` 移植，包名改，注解名改 `com.jiwei.market.seckill.ratelimit.RateLimit`，异常改 `OrderBusinessException`。核心逻辑不变：Redisson `RRateLimiter` 令牌桶 + Redis 故障降级本地 `LocalTokenBucket`。
 
 - [ ] **Step 3: 秒杀接口加限流注解**
 
@@ -652,10 +652,10 @@ public Result<Long> buy(@PathVariable Long id, @RequestBody SeckillBuyDTO dto) {
 
 - [ ] **Step 4: 编译验证 + Commit**
 
-Run: `cd savory-life && mvn compile -pl savory-pojo,savory-common,savory-framework,savory-modules -DskipTests`
+Run: `cd jiwei-life && mvn compile -pl jiwei-pojo,jiwei-common,jiwei-framework,jiwei-modules -DskipTests`
 
 ```bash
-git add savory-modules/src/main/java/com/savory/market/seckill/ratelimit/ savory-modules/src/main/java/com/savory/market/controller/user/SeckillBuyController.java
+git add jiwei-modules/src/main/java/com/jiwei/market/seckill/ratelimit/ jiwei-modules/src/main/java/com/jiwei/market/controller/user/SeckillBuyController.java
 git commit -m "feat(market): 秒杀限流降级（Redisson 令牌桶 + 本地桶降级）"
 ```
 
@@ -664,13 +664,13 @@ git commit -m "feat(market): 秒杀限流降级（Redisson 令牌桶 + 本地桶
 ## Task 6: 短链（营销辅助：MurmurHash+Base62+布隆+Caffeine）
 
 **Files:**
-- Create: `savory-pojo/.../pojo/entity/ShortLink.java`
-- Create: `com/savory/market/shortlink/util/Base62.java`、`MurmurHash.java`、`SimpleBloomFilter.java`
-- Create: `com/savory/market/shortlink/component/ShortCodeBloomFilter.java`、`CreateRateLimiter.java`
-- Create: `com/savory/market/shortlink/mapper/ShortLinkMapper.java`
-- Create: `com/savory/market/shortlink/service/ShortLinkService.java`
-- Create: `com/savory/market/shortlink/controller/ShortLinkController.java`、`RedirectController.java`
-- Modify: `savory-life/db/05_market.sql`（加 `short_link` 表）
+- Create: `jiwei-pojo/.../pojo/entity/ShortLink.java`
+- Create: `com/jiwei/market/shortlink/util/Base62.java`、`MurmurHash.java`、`SimpleBloomFilter.java`
+- Create: `com/jiwei/market/shortlink/component/ShortCodeBloomFilter.java`、`CreateRateLimiter.java`
+- Create: `com/jiwei/market/shortlink/mapper/ShortLinkMapper.java`
+- Create: `com/jiwei/market/shortlink/service/ShortLinkService.java`
+- Create: `com/jiwei/market/shortlink/controller/ShortLinkController.java`、`RedirectController.java`
+- Modify: `jiwei-life/db/05_market.sql`（加 `short_link` 表）
 
 **Interfaces:**
 - Consumes: 无（独立子域）
@@ -718,7 +718,7 @@ public interface ShortLinkMapper extends BaseMapper<ShortLink> {
 
 - [ ] **Step 3: 移植工具类（Base62/MurmurHash/SimpleBloomFilter）**
 
-从源 `Base62.java`/`MurmurHash.java`/`SimpleBloomFilter.java` 移植，包名改 `com.savory.market.shortlink.util`。**关键修复**：`MurmurHash` 增加 64 位版本（`hash64`），替换源项目 32 位 `hash32Unsigned` 以消除 `url_hash` 碰撞。
+从源 `Base62.java`/`MurmurHash.java`/`SimpleBloomFilter.java` 移植，包名改 `com.jiwei.market.shortlink.util`。**关键修复**：`MurmurHash` 增加 64 位版本（`hash64`），替换源项目 32 位 `hash32Unsigned` 以消除 `url_hash` 碰撞。
 
 - [ ] **Step 4: 移植 ShortCodeBloomFilter（启动加载存量短码）**
 
@@ -812,10 +812,10 @@ public class RedirectController {
 
 - [ ] **Step 8: 编译验证 + Commit**
 
-Run: `cd savory-life && mvn compile -pl savory-pojo,savory-common,savory-framework,savory-modules -DskipTests`
+Run: `cd jiwei-life && mvn compile -pl jiwei-pojo,jiwei-common,jiwei-framework,jiwei-modules -DskipTests`
 
 ```bash
-git add savory-pojo/src/main/java/com/savory/pojo/entity/ShortLink.java savory-modules/src/main/java/com/savory/market/shortlink/ savory-life/db/05_market.sql
+git add jiwei-pojo/src/main/java/com/jiwei/pojo/entity/ShortLink.java jiwei-modules/src/main/java/com/jiwei/market/shortlink/ jiwei-life/db/05_market.sql
 git commit -m "feat(market): 短链服务（64位哈希+Base62+布隆防穿透+点击计数）"
 ```
 
@@ -826,4 +826,4 @@ git commit -m "feat(market): 短链服务（64位哈希+Base62+布隆防穿透+�
 - **Spec 覆盖**：设计文档 §5.3 的秒杀（熔断/对账/失败分类/限流/预热/乐观锁）+ 短链（哈希/Base62/布隆/Caffeine/计数/限流）均有对应 Task。
 - **RabbitMQ→RocketMQ 映射**：`basicAck`→`CONSUME_SUCCESS`、`basicNack(requeue)`→`RECONSUME_LATER` + `getReconsumeTimes()` 判断重试次数。
 - **已知瑕疵修复**：Lua `limitPerUser` 真实生效（HINCRBY 计数）；`version` 乐观锁区分「真乐观锁（@Version+updateById）」与「CAS 扣减（stock>=n 为主防线）」；短链 64 位哈希 + 校验 longUrl 相等 + 唯一键冲突查回。
-- **架构决策（需用户知晓）**：秒杀订单复用 `orders` 表（`is_seckill=1` + `seckill_activity_id`），而非独立 `seckill_order` 表——savorylife 是 O2O 外卖，秒杀菜品订单仍需走「接单→备货→取餐」完整履约流程，与普通订单同构；秒杀系统的独立订单表是电商「秒杀→发货」场景。防重技术点（`uk_user_activity` 唯一索引）通过 `orders` 表加唯一键等价落地。
+- **架构决策（需用户知晓）**：秒杀订单复用 `orders` 表（`is_seckill=1` + `seckill_activity_id`），而非独立 `seckill_order` 表——JiweiLife 是 O2O 外卖，秒杀菜品订单仍需走「接单→备货→取餐」完整履约流程，与普通订单同构；秒杀系统的独立订单表是电商「秒杀→发货」场景。防重技术点（`uk_user_activity` 唯一索引）通过 `orders` 表加唯一键等价落地。

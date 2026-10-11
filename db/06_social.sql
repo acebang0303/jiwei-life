@@ -1,10 +1,10 @@
 -- ==========================================
--- 知味生活 · SavoryLife
--- 数据库: savory_social (内容社区数据库)
+-- 吉味生活 · JiweiLife
+-- 数据库: jiwei_social (内容社区数据库)
 -- ==========================================
 
-CREATE DATABASE IF NOT EXISTS savory_social DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE savory_social;
+CREATE DATABASE IF NOT EXISTS jiwei_social DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE jiwei_social;
 
 -- 评价表
 CREATE TABLE review (

@@ -1,9 +1,9 @@
 -- ==========================================
--- 知味生活 · 大规模 mock 数据（自动生成）
+-- 吉味生活 · 大规模 mock 数据（自动生成）
 -- ==========================================
 
 -- 商户
-INSERT INTO savory_merchant.merchant_info (id, name, logo, description, address, longitude, latitude, phone, business_hours, delivery_range, status, emp_id, create_time, update_time) VALUES
+INSERT INTO jiwei_merchant.merchant_info (id, name, logo, description, address, longitude, latitude, phone, business_hours, delivery_range, status, emp_id, create_time, update_time) VALUES
 (100,'蜀香园','https://api.dicebear.com/7.x/icons/svg?seed=m100','川菜招牌餐厅，食材新鲜，口味地道，深受食客喜爱','杭州市滨江区文一西路385号',120.098738,30.216379,'13839244407','17:00-02:00',3937,1,2,NOW(),NOW()),
 (101,'巴蜀人家','https://api.dicebear.com/7.x/icons/svg?seed=m101','川菜招牌餐厅，食材新鲜，口味地道，深受食客喜爱','杭州市余杭区延安路98号',120.166866,30.295121,'13899183995','11:00-23:00',3174,1,3,NOW(),NOW()),
 (102,'川江号子','https://api.dicebear.com/7.x/icons/svg?seed=m102','川菜招牌餐厅，食材新鲜，口味地道，深受食客喜爱','杭州市余杭区莫干山路612号',120.239898,30.344021,'13881319572','17:00-02:00',4449,1,4,NOW(),NOW()),
@@ -45,7 +45,7 @@ INSERT INTO savory_merchant.merchant_info (id, name, logo, description, address,
 (138,'韩屋料理','https://api.dicebear.com/7.x/icons/svg?seed=m138','韩餐招牌餐厅，食材新鲜，口味地道，深受食客喜爱','杭州市余杭区古墩路53号',120.203148,30.308716,'13851922853','10:00-22:00',4367,1,3,NOW(),NOW());
 
 -- 分类
-INSERT INTO savory_merchant.category (id, merchant_id, type, name, sort, status, create_time, update_time) VALUES
+INSERT INTO jiwei_merchant.category (id, merchant_id, type, name, sort, status, create_time, update_time) VALUES
 (200,100,1,'招牌菜',1,1,NOW(),NOW()),
 (201,100,1,'经典菜',2,1,NOW(),NOW()),
 (202,100,1,'主食',3,1,NOW(),NOW()),
@@ -174,7 +174,7 @@ INSERT INTO savory_merchant.category (id, merchant_id, type, name, sort, status,
 (325,138,1,'汤品',4,1,NOW(),NOW());
 
 -- 菜品
-INSERT INTO savory_merchant.dish (id, merchant_id, category_id, name, image, description, price, status, sales, create_time, update_time, create_user, update_user) VALUES
+INSERT INTO jiwei_merchant.dish (id, merchant_id, category_id, name, image, description, price, status, sales, create_time, update_time, create_user, update_user) VALUES
 (1000,100,201,'夫妻肺片','https://api.dicebear.com/7.x/icons/svg?seed=d1000','牛杂薄片，红油花椒面凉拌，麻辣爽口',53.85,1,4754,NOW(),NOW(),2,2),
 (1001,100,200,'酸菜鱼','https://api.dicebear.com/7.x/icons/svg?seed=d1001','黑鱼片配老坛酸菜，酸辣开胃汤鲜味美',27.21,1,728,NOW(),NOW(),2,2),
 (1002,100,200,'辣子鸡','https://api.dicebear.com/7.x/icons/svg?seed=d1002','鸡块炸至金黄，与干辣椒同炒，外酥里嫩',81.44,1,1065,NOW(),NOW(),2,2),
@@ -658,7 +658,7 @@ INSERT INTO savory_merchant.dish (id, merchant_id, category_id, name, image, des
 (1480,138,322,'韩式炸鸡','https://api.dicebear.com/7.x/icons/svg?seed=d1480','炸鸡裹甜辣酱，外酥里嫩',24.60,1,3634,NOW(),NOW(),3,3);
 
 -- 用户
-INSERT INTO savory_user.user (id, openid, nickname, avatar, phone, sex, growth_value, level, preference_tags, status, create_time, update_time) VALUES
+INSERT INTO jiwei_user.user (id, openid, nickname, avatar, phone, sex, growth_value, level, preference_tags, status, create_time, update_time) VALUES
 (100,'mock_openid_0100','黄吃货100','https://api.dicebear.com/7.x/avataaars/svg?seed=u100','13933034096',1,3217,4,'["火锅","甜品"]',1,NOW(),NOW()),
 (101,'mock_openid_0101','赵先生101','https://api.dicebear.com/7.x/avataaars/svg?seed=u101','13975365122',2,1687,2,'["聚餐","川菜","甜品"]',1,NOW(),NOW()),
 (102,'mock_openid_0102','郑先生102','https://api.dicebear.com/7.x/avataaars/svg?seed=u102','13928731572',1,3712,2,'["西北菜","海鲜"]',1,NOW(),NOW()),
@@ -962,7 +962,7 @@ INSERT INTO savory_user.user (id, openid, nickname, avatar, phone, sex, growth_v
 (400,'mock_openid_0400','林先生400','https://api.dicebear.com/7.x/avataaars/svg?seed=u400','13986228867',1,1752,3,'["轻食","减脂餐","西餐"]',1,NOW(),NOW());
 
 -- 订单
-INSERT INTO savory_trade.orders (id, number, user_id, merchant_id, address_book_id, address_detail, amount, discount_amount, delivery_fee, pay_amount, pay_method, pay_status, status, transaction_id, remark, is_seckill, pay_time, create_time, update_time) VALUES
+INSERT INTO jiwei_trade.orders (id, number, user_id, merchant_id, address_book_id, address_detail, amount, discount_amount, delivery_fee, pay_amount, pay_method, pay_status, status, transaction_id, remark, is_seckill, pay_time, create_time, update_time) VALUES
 (1000,'SV48651719',198,131,198,'杭州市西湖区文三路225号',113.03,1.68,3.88,115.23,1,1,6,'wx_txn_mock_1000','',0,'2026-07-23 00:24:00','2026-07-23 00:24:00',NOW()),
 (1001,'SV40670943',279,134,279,'杭州市滨江区文三路529号',46.76,3.69,4.76,47.83,1,1,5,'wx_txn_mock_1001','',0,'2026-07-23 08:26:00','2026-07-23 08:26:00',NOW()),
 (1002,'SV56046182',347,106,347,'杭州市上城区江南大道968号',71.23,12.64,3.49,62.08,1,1,3,'wx_txn_mock_1002','',0,'2026-08-02 08:47:00','2026-08-02 08:47:00',NOW()),
@@ -4965,7 +4965,7 @@ INSERT INTO savory_trade.orders (id, number, user_id, merchant_id, address_book_
 (4999,'SV47290442',329,116,329,'杭州市滨江区中山路196号',95.64,2.30,4.71,98.05,1,1,5,'wx_txn_mock_4999','',0,'2026-07-07 21:11:00','2026-07-07 21:11:00',NOW());
 
 -- 订单明细
-INSERT INTO savory_trade.order_detail (order_id, name, image, dish_flavor, amount, number) VALUES
+INSERT INTO jiwei_trade.order_detail (order_id, name, image, dish_flavor, amount, number) VALUES
 (1000,'麻婆豆腐','https://api.dicebear.com/7.x/icons/svg?seed=dd1037','',36.24,2),
 (1001,'鱼丸','https://api.dicebear.com/7.x/icons/svg?seed=dd1082','',34.67,1),
 (1001,'薯条','https://api.dicebear.com/7.x/icons/svg?seed=dd1259','',83.11,1),
@@ -12957,7 +12957,7 @@ INSERT INTO savory_trade.order_detail (order_id, name, image, dish_flavor, amoun
 (4999,'鲜榨果汁','https://api.dicebear.com/7.x/icons/svg?seed=dd1418','',46.09,2);
 
 -- 笔记
-INSERT INTO savory_social.note (id, user_id, title, content, merchant_id, topic_tags, location, like_count, comment_count, collect_count, view_count, audit_status, is_top, create_time, update_time) VALUES
+INSERT INTO jiwei_social.note (id, user_id, title, content, merchant_id, topic_tags, location, like_count, comment_count, collect_count, view_count, audit_status, is_top, create_time, update_time) VALUES
 (100,155,'干煸四季豆隐藏菜单大公开','作为一个资深吃货，今天终于来打卡干煸四季豆。干煸四季豆真的惊艳到我了！食材非常新鲜，分量也足，重点是价格很亲民。强烈推荐给所有喜欢日料的朋友，绝对不会踩雷。建议错峰去，饭点人会比较多。',101,'["减脂餐","网红店","面食地图"]','杭州市滨江区',756,2,1,2891,1,1,'2026-07-03 17:53:00',NOW()),
 (101,237,'深夜放毒！烤金针菇真的绝了','周末和朋友一起来烤金针菇，点了招牌烤金针菇和几道小菜。味道没得说，烤金针菇是全场最佳，火候掌握得恰到好处。环境也很干净，服务态度好。下次还会再来，已经安利给同事了。',107,'["美食探店","网红店","烧烤地图"]','杭州市上城区',152,21,159,4373,1,1,'2026-07-11 00:50:00',NOW()),
 (102,186,'红烧肉盖饭隐藏菜单大公开','冲着红烧肉盖饭来的，果然没让我失望。川菜爱好者必冲！性价比在杭州真的很能打，人均不到100。就是周末人太多了，建议工作日中午来。',127,'["周末聚餐","老字号","火锅地图"]','杭州市余杭区',56,17,128,465,1,1,'2026-07-15 06:50:00',NOW()),
@@ -13180,7 +13180,7 @@ INSERT INTO savory_social.note (id, user_id, title, content, merchant_id, topic_
 (319,332,'杭州必吃！鱼香肉丝深度测评','冲着鱼香肉丝来的，果然没让我失望。湘菜爱好者必冲！性价比在杭州真的很能打，人均不到100。就是周末人太多了，建议工作日中午来。',102,'["美食探店","网红店","面食地图"]','杭州市滨江区',655,17,284,3833,1,0,'2026-08-14 11:40:00',NOW());
 
 -- 评价
-INSERT INTO savory_social.review (id, user_id, order_id, dish_id, rating, content, tags, is_ai_assisted, audit_status, like_count, create_time) VALUES
+INSERT INTO jiwei_social.review (id, user_id, order_id, dish_id, rating, content, tags, is_ai_assisted, audit_status, like_count, create_time) VALUES
 (100,220,2120,1193,3,'性价比高，农家小炒肉很划算','["偏咸"]',0,1,72,'2026-07-07 20:15:00'),
 (101,107,3694,1268,3,'一般般，香煎三文鱼偏咸，希望改进','["超值","推荐"]',0,1,34,'2026-07-09 21:08:00'),
 (102,250,4853,1317,3,'超级好吃！biangbiang面是招牌，必点','["必吃榜"]',0,1,86,'2026-07-03 10:39:00'),
@@ -13583,7 +13583,7 @@ INSERT INTO savory_social.review (id, user_id, order_id, dish_id, rating, conten
 (499,246,1829,1176,4,'超级好吃！杨枝甘露是招牌，必点','["必吃榜"]',0,1,78,'2026-08-27 07:59:00');
 
 -- 评论
-INSERT INTO savory_social.comment (id, note_id, user_id, parent_id, reply_to_user_id, content, like_count, create_time) VALUES
+INSERT INTO jiwei_social.comment (id, note_id, user_id, parent_id, reply_to_user_id, content, like_count, create_time) VALUES
 (5000,100,204,NULL,NULL,'这家店好停车吗',43,'2026-07-22 01:46:00'),
 (5001,100,284,NULL,NULL,'下次去杭州就去这家',32,'2026-07-21 05:34:00'),
 (5002,101,304,NULL,NULL,'性价比看起来很高诶',34,'2026-07-06 10:49:00'),

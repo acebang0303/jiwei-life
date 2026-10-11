@@ -4,20 +4,20 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.savory</groupId>
-    <artifactId>savory-life</artifactId>
+    <groupId>com.jiwei</groupId>
+    <artifactId>jiwei-life</artifactId>
     <version>1.0.0</version>
     <packaging>pom</packaging>
 
-    <name>SavoryLife</name>
-    <description>知味生活 — 融合AI Agent的本地生活服务平台</description>
+    <name>JiweiLife</name>
+    <description>吉味生活 — 融合AI Agent的本地生活服务平台</description>
 
     <modules>
-        <module>savory-common</module>
-        <module>savory-pojo</module>
-        <module>savory-framework</module>
-        <module>savory-modules</module>
-        <module>savory-ai</module>
+        <module>jiwei-common</module>
+        <module>jiwei-pojo</module>
+        <module>jiwei-framework</module>
+        <module>jiwei-modules</module>
+        <module>jiwei-ai</module>
     </modules>
 
     <properties>
@@ -225,18 +225,18 @@
 
             <!-- Internal modules -->
             <dependency>
-                <groupId>com.savory</groupId>
-                <artifactId>savory-common</artifactId>
+                <groupId>com.jiwei</groupId>
+                <artifactId>jiwei-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.savory</groupId>
-                <artifactId>savory-pojo</artifactId>
+                <groupId>com.jiwei</groupId>
+                <artifactId>jiwei-pojo</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.savory</groupId>
-                <artifactId>savory-framework</artifactId>
+                <groupId>com.jiwei</groupId>
+                <artifactId>jiwei-framework</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

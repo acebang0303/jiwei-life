@@ -1,0 +1,211 @@
+/* ==========================================================================
+   吉味生活 · 管理端 设计系统（生活社区 · 蜜杏暖阳）
+   语义：生活的温度（小红书式社区），非灶火的热度（火候归商家端）
+   ========================================================================== */
+
+:root {
+  /* ---------- 品牌色：蜜杏 ---------- */
+  --jiwei-primary: #FF7A3D;
+  --jiwei-primary-hover: #F06A2E;
+  --jiwei-primary-active: #D95A1F;
+  --jiwei-primary-light: #FFF1E8;   /* 浅色底 */
+  --jiwei-primary-soft: #FFE4D1;    /* 稍深浅底 */
+  --jiwei-glow: #FFB98A;            /* 暖阳高光 */
+  --jiwei-cream: #FFD9B8;           /* 奶油（渐变尾） */
+
+  /* ---------- 暖色中性 ---------- */
+  --jiwei-bg-page: #FFF8F1;      /* 暖白蜜 */
+  --jiwei-bg-card: #FFFFFF;
+  --jiwei-bg-sidebar: #FDF6EE;
+  --jiwei-border: #F0E4D6;
+  --jiwei-border-light: #F5ECE0;
+  --jiwei-text-primary: #33261E;
+  --jiwei-text-regular: #6B5A4E;
+  --jiwei-text-secondary: #9C8A7C;
+  --jiwei-text-placeholder: #C4B6A8;
+
+  /* ---------- 语义色 ---------- */
+  --jiwei-success: #4C9A6A;
+  --jiwei-warning: #E8A13C;
+  --jiwei-danger: #E05B4A;
+  --jiwei-info: #9C8A7C;
+  --jiwei-chart-blue: #5B8DB8;   /* 图表分类用蓝 */
+
+  /* ---------- 阴影（暖） ---------- */
+  --jiwei-shadow-sm: 0 1px 2px rgba(51, 38, 30, 0.04);
+  --jiwei-shadow-md: 0 4px 12px rgba(51, 38, 30, 0.06);
+  --jiwei-shadow-lg: 0 8px 24px rgba(51, 38, 30, 0.08);
+
+  /* ================= Element Plus 主题覆盖 ================= */
+  --el-color-primary: #FF7A3D;
+  --el-color-primary-light-3: #FF9667;
+  --el-color-primary-light-5: #FFB193;
+  --el-color-primary-light-7: #FFC9B2;
+  --el-color-primary-light-8: #FFD8C7;
+  --el-color-primary-light-9: #FFE9DE;
+  --el-color-primary-dark-2: #D95A1F;
+
+  --el-color-success: #4C9A6A;
+  --el-color-warning: #E8A13C;
+  --el-color-danger: #E05B4A;
+  --el-color-error: #E05B4A;
+  --el-color-info: #9C8A7C;
+
+  --el-text-color-primary: #33261E;
+  --el-text-color-regular: #6B5A4E;
+  --el-text-color-secondary: #9C8A7C;
+  --el-text-color-placeholder: #C4B6A8;
+  --el-text-color-disabled: #D4C8BA;
+
+  --el-border-color: #F0E4D6;
+  --el-border-color-light: #F5ECE0;
+  --el-border-color-lighter: #F8F0E6;
+  --el-border-color-extra-light: #FBF5ED;
+
+  --el-fill-color: #F7EEE4;
+  --el-fill-color-light: #FAF3EA;
+  --el-fill-color-lighter: #FCF7F0;
+  --el-fill-color-extra-light: #FDF9F4;
+  --el-fill-color-blank: #FFFFFF;
+
+  --el-bg-color: #FFFFFF;
+  --el-bg-color-page: #FFF8F1;
+  --el-bg-color-overlay: #FFFFFF;
+
+  --el-disabled-bg-color: #F7EEE4;
+  --el-disabled-text-color: #D4C8BA;
+  --el-disabled-border-color: #F0E4D6;
+
+  --el-border-radius-base: 10px;
+  --el-border-radius-small: 6px;
+  --el-border-radius-round: 20px;
+
+  --el-box-shadow: var(--jiwei-shadow-md);
+  --el-box-shadow-light: var(--jiwei-shadow-sm);
+  --el-box-shadow-lighter: var(--jiwei-shadow-md);
+
+  --el-table-header-bg-color: #FDF6EE;
+  --el-table-header-text-color: #6B5A4E;
+  --el-table-border-color: #F5ECE0;
+  --el-table-row-hover-bg-color: #FFF4EC;
+  --el-table-current-row-bg-color: #FFF4EC;
+  --el-table-striped-row-bg-color: #FCF7F0;
+}
+
+/* ==========================================================================
+   全局基础
+   ========================================================================== */
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  font-family: 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  color: var(--jiwei-text-primary);
+  background-color: var(--jiwei-bg-page);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:focus-visible {
+  outline: 2px solid var(--jiwei-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #e3d3c2;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #d0bea9;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ==========================================================================
+   卡片
+   ========================================================================== */
+.el-card {
+  border: 1px solid var(--jiwei-border);
+  border-radius: 14px;
+  box-shadow: var(--jiwei-shadow-sm);
+}
+.el-card.is-hover-shadow:hover {
+  box-shadow: var(--jiwei-shadow-lg);
+}
+.el-card__header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--jiwei-border);
+  font-weight: 600;
+}
+
+/* 卡片标题：暖阳贴纸（径向渐变圆点） */
+.card-header > span:first-child,
+.el-card__header > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  color: var(--jiwei-text-primary);
+}
+.card-header > span:first-child::before,
+.el-card__header > span:first-child::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--jiwei-glow), var(--jiwei-primary));
+  box-shadow: 0 1px 3px rgba(255, 122, 61, 0.35);
+}
+
+/* ==========================================================================
+   表格
+   ========================================================================== */
+.el-table {
+  font-size: 13px;
+}
+.el-table th.el-table__cell {
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   组件微调
+   ========================================================================== */
+.el-tag {
+  border-radius: 6px;
+  font-weight: 500;
+}
+.el-button {
+  font-weight: 500;
+}
+.el-dialog {
+  border-radius: 16px;
+}
+.el-dialog__title {
+  font-weight: 600;
+}
+.el-message-box {
+  border-radius: 16px;
+}
+
+/* ==========================================================================
+   动效降级
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

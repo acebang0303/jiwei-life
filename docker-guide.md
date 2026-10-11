@@ -1,4 +1,4 @@
-# Docker Desktop 完整教程（Windows） + SavoryLife 环境搭建
+# Docker Desktop 完整教程（Windows） + JiweiLife 环境搭建
 
 > 2026-07-26 · 从零开始，覆盖安装、常见问题排查、项目中间件一键启动
 
@@ -22,7 +22,7 @@ Win + R 打开运行，输入 `winver` 回车：
 
 ### 3. 内存建议
 
-至少 8GB，推荐 16GB。Docker + SavoryLife 全套中间件大约占用 2-3GB 内存。
+至少 8GB，推荐 16GB。Docker + JiweiLife 全套中间件大约占用 2-3GB 内存。
 
 ---
 
@@ -173,7 +173,7 @@ docker run hello-world
 
 ---
 
-## 七、第六步：一键启动 SavoryLife 全部中间件
+## 七、第六步：一键启动 JiweiLife 全部中间件
 
 ### 创建 docker-compose.yml
 
@@ -186,14 +186,14 @@ services:
   # ========== MySQL 8.0 ==========
   mysql:
     image: mysql:8.0
-    container_name: savory-mysql
+    container_name: jiwei-mysql
     ports:
       - "3306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: root123
     volumes:
-      - savory_mysql_data:/var/lib/mysql
-      - ./savory-life/db:/docker-entrypoint-initdb.d  # 自动执行SQL
+      - jiwei_mysql_data:/var/lib/mysql
+      - ./jiwei-life/db:/docker-entrypoint-initdb.d  # 自动执行SQL
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
@@ -203,41 +203,41 @@ services:
   # ========== Redis 7.x ==========
   redis:
     image: redis:7-alpine
-    container_name: savory-redis
+    container_name: jiwei-redis
     ports:
       - "6379:6379"
     volumes:
-      - savory_redis_data:/data
+      - jiwei_redis_data:/data
     restart: unless-stopped
 
   # ========== MongoDB 7.x ==========
   mongodb:
     image: mongo:7
-    container_name: savory-mongodb
+    container_name: jiwei-mongodb
     ports:
       - "27017:27017"
     volumes:
-      - savory_mongo_data:/data/db
+      - jiwei_mongo_data:/data/db
     restart: unless-stopped
 
   # ========== PostgreSQL 16 + pgvector ==========
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: savory-postgres
+    container_name: jiwei-postgres
     ports:
       - "5432:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: savory_ai
+      POSTGRES_DB: jiwei_ai
     volumes:
-      - savory_pg_data:/var/lib/postgresql/data
+      - jiwei_pg_data:/var/lib/postgresql/data
     restart: unless-stopped
 
   # ========== RocketMQ NameServer ==========
   rocketmq-namesrv:
     image: apache/rocketmq:5.3.0
-    container_name: savory-rmq-namesrv
+    container_name: jiwei-rmq-namesrv
     ports:
       - "9876:9876"
     environment:
@@ -248,7 +248,7 @@ services:
   # ========== RocketMQ Broker ==========
   rocketmq-broker:
     image: apache/rocketmq:5.3.0
-    container_name: savory-rmq-broker
+    container_name: jiwei-rmq-broker
     depends_on:
       - rocketmq-namesrv
     ports:
@@ -261,10 +261,10 @@ services:
     restart: unless-stopped
 
 volumes:
-  savory_mysql_data:
-  savory_redis_data:
-  savory_mongo_data:
-  savory_pg_data:
+  jiwei_mysql_data:
+  jiwei_redis_data:
+  jiwei_mongo_data:
+  jiwei_pg_data:
 ```
 
 ### 启动一切
@@ -299,8 +299,8 @@ docker compose ps
 | `docker compose logs -f mysql` | 实时看 MySQL 日志 |
 | `docker compose restart mysql` | 重启 MySQL |
 | `docker ps` | 查看所有运行中的容器 |
-| `docker exec -it savory-mysql mysql -uroot -proot123` | 进入 MySQL 命令行 |
-| `docker exec -it savory-redis redis-cli` | 进入 Redis 命令行 |
+| `docker exec -it jiwei-mysql mysql -uroot -proot123` | 进入 MySQL 命令行 |
+| `docker exec -it jiwei-redis redis-cli` | 进入 Redis 命令行 |
 
 ---
 

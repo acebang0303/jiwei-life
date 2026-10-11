@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 用高并发点赞系统的「Redis 挡写 → 攒批 → 热点聚合 → 幂等 upsert → 兜底对账」五层链路，替换 savorylife 社交域里 `NoteServiceImpl.like()` 的「裸 `selectOne` + `deleteById/insert` + `updateById`」浅实现。改造后点赞写路径不再同步打 DB，读路径用「Redis 计数 + 本地待刷增量」实时合并，最终一致由攒批落库 + 30s 兜底对账保证。
+**Goal:** 用高并发点赞系统的「Redis 挡写 → 攒批 → 热点聚合 → 幂等 upsert → 兜底对账」五层链路，替换 JiweiLife 社交域里 `NoteServiceImpl.like()` 的「裸 `selectOne` + `deleteById/insert` + `updateById`」浅实现。改造后点赞写路径不再同步打 DB，读路径用「Redis 计数 + 本地待刷增量」实时合并，最终一致由攒批落库 + 30s 兜底对账保证。
 
 **Architecture:** 点赞操作先按「热点 / 普通」分流——热点笔记进 JVM 本地大对象缓存（`LocalHotLikeBuffer`，1.5s 一次 pipeline 聚合刷 Redis），普通笔记直连 Redis（`NoteLikeStore.applyDirect`）。所有操作同步打点到 `HotKeyDetector`（按窗口速率识别热点），同时把事件写入 Redis LIST（`note:like:events`）。消费端 `NoteLikeEventConsumer` 每 1s 攒批窥探（peek），攒够 `batch-size` 或等待超 2s 即批量落库（幂等 INSERT/DELETE + 计数 UPDATE），成功后才 `commitEvents`（LTRIM，至少一次语义）。`SyncReconciler` 每 30s 把 Redis 全量计数整刷回 `note.like_count` 兜底收敛偏差。
 
@@ -15,12 +15,12 @@
 
 ## Global Constraints
 
-- 包名统一 `com.savory.social.like`（点赞子包）；实体复用 `com.savory.pojo.entity.Note` / `NoteLike`（**不新增实体，不新增对账表**）
-- Redis 用 `StringRedisTemplate`（字符串序列化，避免 `RedisTemplate` 的 JDK 序列化）；事件 JSON 用 `com.alibaba.fastjson2.JSON`（savorylife 已用 fastjson2）
+- 包名统一 `com.jiwei.social.like`（点赞子包）；实体复用 `com.jiwei.pojo.entity.Note` / `NoteLike`（**不新增实体，不新增对账表**）
+- Redis 用 `StringRedisTemplate`（字符串序列化，避免 `RedisTemplate` 的 JDK 序列化）；事件 JSON 用 `com.alibaba.fastjson2.JSON`（JiweiLife 已用 fastjson2）
 - 数据源 `@DS("social")`：Mapper 接口已标，批量写库的 Service（consumer/reconciler）类上再标一次，匹配现有风格
-- **语义适配（关键差异）**：轮子 `like_record` 有 `status` 字段（1=赞 / 0=取消，`ON DUPLICATE KEY UPDATE status=?`）；savorylife 的 `note_like` 是「存在=赞，删除=取消」语义（无 status 字段）。攒批落库必须改成 **`INSERT IGNORE`（幂等赞）+ `DELETE`（幂等取消）**，不能照搬 status 翻转
+- **语义适配（关键差异）**：轮子 `like_record` 有 `status` 字段（1=赞 / 0=取消，`ON DUPLICATE KEY UPDATE status=?`）；JiweiLife 的 `note_like` 是「存在=赞，删除=取消」语义（无 status 字段）。攒批落库必须改成 **`INSERT IGNORE`（幂等赞）+ `DELETE`（幂等取消）**，不能照搬 status 翻转
 - **修复已知坑**：轮子 `like.hot.window-seconds` 是死配置（yml 配 5s，`HotKeyDetector` 硬编码 `fixedDelay=2000`）——落地时 `@Scheduled` 用 `fixedDelayString` 从配置读取，让窗口配置真实生效
-- **合理裁剪（非简化，是有依据的移除）**：① 去掉 `like:rank` ZSet 排行榜——savorylife 已有 `hot_notes:weekly` 综合热度排行（`likeCount*2+commentCount*3+collectCount*5`），纯点赞排行功能重叠；② 去掉 `MetricsService` 指标记账——savorylife 用 actuator/prometheus；③ 去掉 `knownArticleIds` 内存目录——savorylife 直接 `noteMapper.selectById` 判存在
+- **合理裁剪（非简化，是有依据的移除）**：① 去掉 `like:rank` ZSet 排行榜——JiweiLife 已有 `hot_notes:weekly` 综合热度排行（`likeCount*2+commentCount*3+collectCount*5`），纯点赞排行功能重叠；② 去掉 `MetricsService` 指标记账——JiweiLife 用 actuator/prometheus；③ 去掉 `knownArticleIds` 内存目录——JiweiLife 直接 `noteMapper.selectById` 判存在
 - 攒批/对账定时周期一律 `fixedDelayString` 从 `application.yml` 读，不硬编码
 - 每个 Task 完成后 `git add` 具体文件并 commit，禁止 `git add -A`
 
@@ -28,28 +28,28 @@
 
 ## File Structure 概览
 
-**新建（social.like 子包，savory-modules）：**
-- `com/savory/social/like/NoteLikeEvent.java` — 点赞事件模型（LIKE/UNLIKE）
-- `com/savory/social/like/NoteLikeStore.java` — Redis 存取层（计数 HASH + 已赞用户 SET + 事件 LIST）
-- `com/savory/social/like/HotKeyDetector.java` — 热点检测器（窗口速率统计）
-- `com/savory/social/like/LocalHotLikeBuffer.java` — 热点本地大对象缓存（聚合刷写）
-- `com/savory/social/like/NoteLikeEventConsumer.java` — 攒批消费端（peek/commit + 幂等落库）
-- `com/savory/social/like/SyncReconciler.java` — 兜底对账（30s 整刷）
-- `com/savory/social/like/NoteLikeService.java` — 点赞编排（分流 + 实时计数合并）
+**新建（social.like 子包，jiwei-modules）：**
+- `com/jiwei/social/like/NoteLikeEvent.java` — 点赞事件模型（LIKE/UNLIKE）
+- `com/jiwei/social/like/NoteLikeStore.java` — Redis 存取层（计数 HASH + 已赞用户 SET + 事件 LIST）
+- `com/jiwei/social/like/HotKeyDetector.java` — 热点检测器（窗口速率统计）
+- `com/jiwei/social/like/LocalHotLikeBuffer.java` — 热点本地大对象缓存（聚合刷写）
+- `com/jiwei/social/like/NoteLikeEventConsumer.java` — 攒批消费端（peek/commit + 幂等落库）
+- `com/jiwei/social/like/SyncReconciler.java` — 兜底对账（30s 整刷）
+- `com/jiwei/social/like/NoteLikeService.java` — 点赞编排（分流 + 实时计数合并）
 
 **修改：**
-- `com/savory/social/mapper/NoteLikeMapper.java` — 加 `insertIgnoreBatch` / `deleteBatch`
-- `com/savory/social/mapper/NoteMapper.java` — 加 `incrLikeCount` / `reconcileLikeCount`
-- `com/savory/social/service/impl/NoteServiceImpl.java` — `like()` 委托 `NoteLikeService`，去掉 `@Transactional`
-- `savory-life/savory-modules/src/main/resources/application.yml` — 追加 `like.*` 配置块
+- `com/jiwei/social/mapper/NoteLikeMapper.java` — 加 `insertIgnoreBatch` / `deleteBatch`
+- `com/jiwei/social/mapper/NoteMapper.java` — 加 `incrLikeCount` / `reconcileLikeCount`
+- `com/jiwei/social/service/impl/NoteServiceImpl.java` — `like()` 委托 `NoteLikeService`，去掉 `@Transactional`
+- `jiwei-life/jiwei-modules/src/main/resources/application.yml` — 追加 `like.*` 配置块
 
 ---
 
 ## Task 1: 点赞事件模型 + Redis 存取层
 
 **Files:**
-- Create: `com/savory/social/like/NoteLikeEvent.java`
-- Create: `com/savory/social/like/NoteLikeStore.java`
+- Create: `com/jiwei/social/like/NoteLikeEvent.java`
+- Create: `com/jiwei/social/like/NoteLikeStore.java`
 
 **Interfaces:**
 - Consumes: 无（第一个任务）
@@ -59,10 +59,10 @@
 
 - [ ] **Step 1: 创建 NoteLikeEvent（事件模型）**
 
-从源 `LikeEvent.java` 移植，`articleId` → `noteId`，改 savorylife 的 Lombok 风格：
+从源 `LikeEvent.java` 移植，`articleId` → `noteId`，改 JiweiLife 的 Lombok 风格：
 
 ```java
-package com.savory.social.like;
+package com.jiwei.social.like;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -106,7 +106,7 @@ public class NoteLikeEvent {
 从源 `RedisLikeStore.java` 移植，改动：① 类名 `NoteLikeStore`；② `article` → `note`；③ key 前缀统一 `note:like:*`；④ **去掉 `like:rank` ZSet 相关方法**（`topArticles` + `flushAggregated`/`applyDirect` 里的 `zIncrBy`）；⑤ 序列化由 Jackson `ObjectMapper` 改 fastjson2 `JSON`；⑥ 去掉 `MetricsService`（用 `log` 代替记账）：
 
 ```java
-package com.savory.social.like;
+package com.jiwei.social.like;
 
 import com.alibaba.fastjson2.JSON;
 import lombok.extern.slf4j.Slf4j;
@@ -286,14 +286,14 @@ public class NoteLikeStore {
 
 - [ ] **Step 3: 编译验证**
 
-Run: `cd savory-life && mvn compile -pl savory-common,savory-pojo,savory-framework,savory-modules -DskipTests`
+Run: `cd jiwei-life && mvn compile -pl jiwei-common,jiwei-pojo,jiwei-framework,jiwei-modules -DskipTests`
 Expected: BUILD SUCCESS
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add savory-modules/src/main/java/com/savory/social/like/NoteLikeEvent.java \
-        savory-modules/src/main/java/com/savory/social/like/NoteLikeStore.java
+git add jiwei-modules/src/main/java/com/jiwei/social/like/NoteLikeEvent.java \
+        jiwei-modules/src/main/java/com/jiwei/social/like/NoteLikeStore.java
 git commit -m "feat(social): 点赞事件模型与 Redis 存取层（计数/用户集合/事件队列）"
 ```
 
@@ -302,8 +302,8 @@ git commit -m "feat(social): 点赞事件模型与 Redis 存取层（计数/用�
 ## Task 2: 热点检测 + 本地聚合
 
 **Files:**
-- Create: `com/savory/social/like/HotKeyDetector.java`
-- Create: `com/savory/social/like/LocalHotLikeBuffer.java`
+- Create: `com/jiwei/social/like/HotKeyDetector.java`
+- Create: `com/jiwei/social/like/LocalHotLikeBuffer.java`
 
 **Interfaces:**
 - Consumes: `NoteLikeStore`（Task 1）
@@ -316,7 +316,7 @@ git commit -m "feat(social): 点赞事件模型与 Redis 存取层（计数/用�
 从源 `LocalHotLikeBuffer.java` 移植，`article` → `note`，去掉 `MetricsService`：
 
 ```java
-package com.savory.social.like;
+package com.jiwei.social.like;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -451,7 +451,7 @@ public class LocalHotLikeBuffer {
 从源 `HotKeyDetector.java` 移植，`article` → `note`，去掉 `MetricsService`，**核心修复**：`@Scheduled` 评估周期从硬编码 `fixedDelay=2000` 改为 `fixedDelayString` 读 `like.hot.window-seconds`（默认 2s，配置 5s 时真实生效）：
 
 ```java
-package com.savory.social.like;
+package com.jiwei.social.like;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -519,14 +519,14 @@ public class HotKeyDetector {
 
 - [ ] **Step 3: 编译验证**
 
-Run: `cd savory-life && mvn compile -pl savory-common,savory-pojo,savory-framework,savory-modules -DskipTests`
+Run: `cd jiwei-life && mvn compile -pl jiwei-common,jiwei-pojo,jiwei-framework,jiwei-modules -DskipTests`
 Expected: BUILD SUCCESS
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add savory-modules/src/main/java/com/savory/social/like/HotKeyDetector.java \
-        savory-modules/src/main/java/com/savory/social/like/LocalHotLikeBuffer.java
+git add jiwei-modules/src/main/java/com/jiwei/social/like/HotKeyDetector.java \
+        jiwei-modules/src/main/java/com/jiwei/social/like/LocalHotLikeBuffer.java
 git commit -m "feat(social): 热点检测器与本地聚合缓冲（修复 window-seconds 死配置）"
 ```
 
@@ -535,10 +535,10 @@ git commit -m "feat(social): 热点检测器与本地聚合缓冲（修复 windo
 ## Task 3: 攒批落库 + 幂等 + 兜底对账
 
 **Files:**
-- Modify: `com/savory/social/mapper/NoteLikeMapper.java` — 加 `insertIgnoreBatch` / `deleteBatch`
-- Modify: `com/savory/social/mapper/NoteMapper.java` — 加 `incrLikeCount` / `reconcileLikeCount`
-- Create: `com/savory/social/like/NoteLikeEventConsumer.java`
-- Create: `com/savory/social/like/SyncReconciler.java`
+- Modify: `com/jiwei/social/mapper/NoteLikeMapper.java` — 加 `insertIgnoreBatch` / `deleteBatch`
+- Modify: `com/jiwei/social/mapper/NoteMapper.java` — 加 `incrLikeCount` / `reconcileLikeCount`
+- Create: `com/jiwei/social/like/NoteLikeEventConsumer.java`
+- Create: `com/jiwei/social/like/SyncReconciler.java`
 
 **Interfaces:**
 - Consumes: `NoteLikeStore`（Task 1）、`NoteLikeMapper`/`NoteMapper`（现有）
@@ -548,13 +548,13 @@ git commit -m "feat(social): 热点检测器与本地聚合缓冲（修复 windo
 
 - [ ] **Step 1: 扩展 NoteLikeMapper（批量幂等 INSERT/DELETE）**
 
-**关键语义差异**：轮子 `like_record` 有 status 字段用 `ON DUPLICATE KEY UPDATE status=?`；savorylife `note_like` 是「存在=赞，删除=取消」，故赞用 `INSERT IGNORE`（依赖 `uk_note_user` 唯一键幂等），取消用 `DELETE`（幂等，删不存在也无副作用）：
+**关键语义差异**：轮子 `like_record` 有 status 字段用 `ON DUPLICATE KEY UPDATE status=?`；JiweiLife `note_like` 是「存在=赞，删除=取消」，故赞用 `INSERT IGNORE`（依赖 `uk_note_user` 唯一键幂等），取消用 `DELETE`（幂等，删不存在也无副作用）：
 
 ```java
-package com.savory.social.mapper;
+package com.jiwei.social.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.savory.pojo.entity.NoteLike;
+import com.jiwei.pojo.entity.NoteLike;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
@@ -590,10 +590,10 @@ public interface NoteLikeMapper extends BaseMapper<NoteLike> {
 - [ ] **Step 2: 扩展 NoteMapper（计数增量更新 + 对账整刷）**
 
 ```java
-package com.savory.social.mapper;
+package com.jiwei.social.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.savory.pojo.entity.Note;
+import com.jiwei.pojo.entity.Note;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
@@ -619,12 +619,12 @@ public interface NoteMapper extends BaseMapper<Note> {
 从源 `LikeEventConsumer.java` 移植，改动：① 去掉 `JdbcTemplate`/`MetricsService`，改用 `NoteLikeMapper`/`NoteMapper`；② `article` → `note`；③ **status 翻转改成 INSERT IGNORE + DELETE**；④ 类上标 `@DS("social")`：
 
 ```java
-package com.savory.social.like;
+package com.jiwei.social.like;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
-import com.savory.pojo.entity.NoteLike;
-import com.savory.social.mapper.NoteLikeMapper;
-import com.savory.social.mapper.NoteMapper;
+import com.jiwei.pojo.entity.NoteLike;
+import com.jiwei.social.mapper.NoteLikeMapper;
+import com.jiwei.social.mapper.NoteMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -735,10 +735,10 @@ public class NoteLikeEventConsumer {
 从源 `SyncReconciler.java` 移植，`article` → `note`，`JdbcTemplate` → `NoteMapper`，去掉 `MetricsService`：
 
 ```java
-package com.savory.social.like;
+package com.jiwei.social.like;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
-import com.savory.social.mapper.NoteMapper;
+import com.jiwei.social.mapper.NoteMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -783,13 +783,13 @@ public class SyncReconciler {
 
 - [ ] **Step 5: 编译验证 + Commit**
 
-Run: `cd savory-life && mvn compile -pl savory-common,savory-pojo,savory-framework,savory-modules -DskipTests`
+Run: `cd jiwei-life && mvn compile -pl jiwei-common,jiwei-pojo,jiwei-framework,jiwei-modules -DskipTests`
 
 ```bash
-git add savory-modules/src/main/java/com/savory/social/mapper/NoteLikeMapper.java \
-        savory-modules/src/main/java/com/savory/social/mapper/NoteMapper.java \
-        savory-modules/src/main/java/com/savory/social/like/NoteLikeEventConsumer.java \
-        savory-modules/src/main/java/com/savory/social/like/SyncReconciler.java
+git add jiwei-modules/src/main/java/com/jiwei/social/mapper/NoteLikeMapper.java \
+        jiwei-modules/src/main/java/com/jiwei/social/mapper/NoteMapper.java \
+        jiwei-modules/src/main/java/com/jiwei/social/like/NoteLikeEventConsumer.java \
+        jiwei-modules/src/main/java/com/jiwei/social/like/SyncReconciler.java
 git commit -m "feat(social): 点赞攒批落库（INSERT IGNORE/DELETE 幂等）与 30s 兜底对账"
 ```
 
@@ -798,9 +798,9 @@ git commit -m "feat(social): 点赞攒批落库（INSERT IGNORE/DELETE 幂等）
 ## Task 4: 编排服务 + 改造 NoteServiceImpl
 
 **Files:**
-- Create: `com/savory/social/like/NoteLikeService.java`
-- Modify: `com/savory/social/service/impl/NoteServiceImpl.java` — `like()` 委托，去掉 `@Transactional`
-- Modify: `savory-life/savory-modules/src/main/resources/application.yml` — 追加 `like.*` 配置
+- Create: `com/jiwei/social/like/NoteLikeService.java`
+- Modify: `com/jiwei/social/service/impl/NoteServiceImpl.java` — `like()` 委托，去掉 `@Transactional`
+- Modify: `jiwei-life/jiwei-modules/src/main/resources/application.yml` — 追加 `like.*` 配置
 
 **Interfaces:**
 - Consumes: `NoteLikeStore`/`LocalHotLikeBuffer`/`HotKeyDetector`（Task 1/2）
@@ -810,10 +810,10 @@ git commit -m "feat(social): 点赞攒批落库（INSERT IGNORE/DELETE 幂等）
 
 - [ ] **Step 1: 创建 NoteLikeService（编排 + 实时计数合并）**
 
-从源 `LikeService.java` 移植，改动：① `article` → `note`；② 去掉 `knownArticleIds` 内存目录（存在校验由 `NoteServiceImpl` 的 `selectById` 负责，本服务纯编排）；③ 去掉 `ArticleRepository` 依赖；④ 去掉 `infoOf`（savorylife 暂无需批量组装，按需再加）：
+从源 `LikeService.java` 移植，改动：① `article` → `note`；② 去掉 `knownArticleIds` 内存目录（存在校验由 `NoteServiceImpl` 的 `selectById` 负责，本服务纯编排）；③ 去掉 `ArticleRepository` 依赖；④ 去掉 `infoOf`（JiweiLife 暂无需批量组装，按需再加）：
 
 ```java
-package com.savory.social.like;
+package com.jiwei.social.like;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -918,7 +918,7 @@ public boolean like(Long noteId) {
 
 - [ ] **Step 3: application.yml 追加 like.* 配置**
 
-在 `application.yml` 末尾（`savory:` 块后或同级）追加：
+在 `application.yml` 末尾（`jiwei:` 块后或同级）追加：
 
 ```yaml
 like:
@@ -936,12 +936,12 @@ like:
 
 - [ ] **Step 4: 编译验证 + Commit**
 
-Run: `cd savory-life && mvn compile -pl savory-common,savory-pojo,savory-framework,savory-modules -DskipTests`
+Run: `cd jiwei-life && mvn compile -pl jiwei-common,jiwei-pojo,jiwei-framework,jiwei-modules -DskipTests`
 
 ```bash
-git add savory-modules/src/main/java/com/savory/social/like/NoteLikeService.java \
-        savory-modules/src/main/java/com/savory/social/service/impl/NoteServiceImpl.java \
-        savory-modules/src/main/resources/application.yml
+git add jiwei-modules/src/main/java/com/jiwei/social/like/NoteLikeService.java \
+        jiwei-modules/src/main/java/com/jiwei/social/service/impl/NoteServiceImpl.java \
+        jiwei-modules/src/main/resources/application.yml
 git commit -m "feat(social): 点赞编排服务接入 NoteServiceImpl（Redis 挡写+热点聚合+实时计数）"
 ```
 
@@ -950,7 +950,7 @@ git commit -m "feat(social): 点赞编排服务接入 NoteServiceImpl（Redis �
 ## Self-Review 结论
 
 - **Spec 覆盖**：设计文档 §5.4 的六项技术点（Redis 挡写 / 攒批 peek-commit / 热点聚合 / 幂等 upsert / 兜底对账 / 实时合并）均有对应 Task，且 4 个 Task 有清晰的编译依赖顺序（Redis 层 → 检测聚合 → 落库对账 → 编排接入）。
-- **语义适配（关键）**：轮子 `like_record.status`（1/0 翻转）→ savorylife「存在=赞，删除=取消」，落库改为 `INSERT IGNORE` + `DELETE`，未照搬 status 翻转。这是本次移植最容易出错、已显式处理的差异点。
+- **语义适配（关键）**：轮子 `like_record.status`（1/0 翻转）→ JiweiLife「存在=赞，删除=取消」，落库改为 `INSERT IGNORE` + `DELETE`，未照搬 status 翻转。这是本次移植最容易出错、已显式处理的差异点。
 - **幂等闭环**：写路径靠 `uk_note_user` 唯一键 + `INSERT IGNORE`/`DELETE` 天然幂等；事件队列 peek/commit 至少一次语义 + 幂等 upsert 保证不丢不重；`SyncReconciler` 30s 整刷 `note.like_count` 兜底收敛 Redis 计数与 DB 计数的偏差。
 - **已知坑修复**：`window-seconds` 死配置 → `@Scheduled(fixedDelayString = "${like.hot.window-seconds:2}000")`，配置真实生效；去掉了轮子冗余的 `like:rank`、`MetricsService`、`knownArticleIds`（均有合理替代，非简化）。
 - **边界**：`collect()`（收藏）不在本计划范围，现状已用 Redis Set + 同步计数，无对应轮子深度可注入，后续单独补攒批。`like()` 的 `@Transactional` 已移除，因为改造后无同步 DB 写。

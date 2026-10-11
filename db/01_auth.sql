@@ -1,10 +1,10 @@
 -- ==========================================
--- 知味生活 · SavoryLife
--- 数据库: savory_auth (认证数据库)
+-- 吉味生活 · JiweiLife
+-- 数据库: jiwei_auth (认证数据库)
 -- ==========================================
 
-CREATE DATABASE IF NOT EXISTS savory_auth DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE savory_auth;
+CREATE DATABASE IF NOT EXISTS jiwei_auth DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE jiwei_auth;
 
 -- 管理员表
 CREATE TABLE employee (

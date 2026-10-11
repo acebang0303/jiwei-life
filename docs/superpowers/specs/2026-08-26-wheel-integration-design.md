@@ -1,8 +1,8 @@
-# 知味生活 SavoryLife 技术栈整合设计文档
+# 吉味生活 JiweiLife 技术栈整合设计文档
 
 > 日期：2026-08-26
 > 状态：待评审
-> 范围：将 7 个轮子项目的技术深度，按「抽技术点注入」原则整合进 savorylife 现有骨架
+> 范围：将 7 个轮子项目的技术深度，按「抽技术点注入」原则整合进 JiweiLife 现有骨架
 
 ---
 
@@ -10,15 +10,15 @@
 
 ### 1.1 背景
 
-savorylife 是一个「O2O 本地生活 + 内容社区 + AI Agent」全栈平台，采用**模块化单体**架构。当前状态是**骨架完整、深度不足**：领域模块（trade/market/social/ai）都已搭建，但大量核心逻辑是 `TODO` 或浅实现（如支付直接标已支付、点赞裸 `selectOne+updateById`）。
+JiweiLife 是一个「O2O 本地生活 + 内容社区 + AI Agent」全栈平台，采用**模块化单体**架构。当前状态是**骨架完整、深度不足**：领域模块（trade/market/social/ai）都已搭建，但大量核心逻辑是 `TODO` 或浅实现（如支付直接标已支付、点赞裸 `selectOne+updateById`）。
 
-用户整理的 7 个轮子项目恰好相反——**技术点很深、但无业务闭环**。本设计文档的目标，是把这 7 个项目的技术深度，注入到 savorylife 的对应领域骨架中，形成**深度互补**。
+用户整理的 7 个轮子项目恰好相反——**技术点很深、但无业务闭环**。本设计文档的目标，是把这 7 个项目的技术深度，注入到 JiweiLife 的对应领域骨架中，形成**深度互补**。
 
 ### 1.2 已拍板的方向（不可再摇摆）
 
 | 决策 | 结论 |
 |---|---|
-| AI 部分 | **完全用 JChatMind 重写** savory-ai |
+| AI 部分 | **完全用 JChatMind 重写** jiwei-ai |
 | 消息中间件 | **统一到 RocketMQ**（轮子的 RabbitMQ 逻辑等价迁移） |
 | 短链项目 | **作为营销辅助能力**纳入 market 模块 |
 | 模型策略 | **上多模型**（注册表切换，不再锁死 DeepSeek） |
@@ -28,14 +28,14 @@ savorylife 是一个「O2O 本地生活 + 内容社区 + AI Agent」全栈平台
 
 ## 2. 现状盘点
 
-### 2.1 savorylife 现状（骨架）
+### 2.1 JiweiLife 现状（骨架）
 
 | 模块 | 技术栈 | 现状 | 关键文件 |
 |---|---|---|---|
 | trade | Redisson + 雪花ID + RocketMQ | 支付/退款/回补全 `TODO`，`pay()` 直接标已支付 | `OrderServiceImpl.java` |
 | market | Redis + Lua | Lua 预扣已实现，异步落库/预热 `TODO` | `SeckillServiceImpl.java` |
 | social | Redis ZSet | `like()` 裸 DB 读写，Feed 流 `TODO` | `NoteServiceImpl.java` |
-| savory-ai | Spring AI + DeepSeek + pgvector | ChatClient 托管 ReAct，3 个 Agent，RAG 简易切块 | `ExploreAgent.java`、`RagService.java` |
+| jiwei-ai | Spring AI + DeepSeek + pgvector | ChatClient 托管 ReAct，3 个 Agent，RAG 简易切块 | `ExploreAgent.java`、`RagService.java` |
 
 **基础能力已具备**：MyBatis-Plus + dynamic-datasource（`@DS` 多数据源）、Redisson、RocketMQ、Redis/Lua、pgvector、MongoDB。
 
@@ -55,10 +55,10 @@ savorylife 是一个「O2O 本地生活 + 内容社区 + AI Agent」全栈平台
 
 ## 3. 整合原则
 
-1. **抽技术点，不搬项目**：轮子项目不是完整系统，只抽取「深挖过的技术点」，注入到 savorylife 已有领域。
+1. **抽技术点，不搬项目**：轮子项目不是完整系统，只抽取「深挖过的技术点」，注入到 JiweiLife 已有领域。
 2. **技术栈统一**：RocketMQ 唯一、Redisson 唯一、pgvector 唯一，杜绝多套中间件并存。
-3. **业务能力不丢**：savory-ai 现有的推荐引擎、内容审核、向量同步管道、探店工具是真实业务，必须保留。
-4. **去同质化**：JChatMind/智能问数都有「二手/星球」标签，落地时用 savorylife 真实业务工具替换示例工具，注入个人深度。
+3. **业务能力不丢**：jiwei-ai 现有的推荐引擎、内容审核、向量同步管道、探店工具是真实业务，必须保留。
+4. **去同质化**：JChatMind/智能问数都有「二手/星球」标签，落地时用 JiweiLife 真实业务工具替换示例工具，注入个人深度。
 
 ---
 
@@ -68,7 +68,7 @@ savorylife 是一个「O2O 本地生活 + 内容社区 + AI Agent」全栈平台
 基础设施层（唯一）：RocketMQ + Redisson + Redis/Lua + pgvector + MySQL(6库)
                                         │
         ┌───────────────┬───────────────┼───────────────┐
-     savory-ai       trade           market          social
+     jiwei-ai       trade           market          social
    (AI 服务 :8087)  (交易域)        (营销域)         (社交域)
         │               │               │               │
    JChatMind 运行时  支付中台技术点   秒杀+短链技术点   点赞①技术点
@@ -82,7 +82,7 @@ savorylife 是一个「O2O 本地生活 + 内容社区 + AI Agent」全栈平台
 
 ## 5. 分领域整合设计
 
-### 5.1 AI 服务（savory-ai）—— JChatMind + 智能问数
+### 5.1 AI 服务（jiwei-ai）—— JChatMind + 智能问数
 
 **这是本次整合的核心，改动最大。**
 
@@ -118,7 +118,7 @@ savorylife 是一个「O2O 本地生活 + 内容社区 + AI Agent」全栈平台
 2. **推荐引擎 `RecommendEngine` 保留**：它是业务能力，不是 Agent 框架，不动。
 3. **向量同步管道保留**：`EmbeddingConsumer`（RocketMQ 消费笔记向量）保留，但其 Embedding 调 `EmbeddingService` 需切换到 bge-m3（与 JChatMind 统一）。
 4. **版本对齐**：JChatMind 用 Spring AI BOM 1.1.0，智能问数用 1.1.2 + `spring-ai-alibaba-graph-core`。落地时统一到一个 Spring AI 版本（建议 1.1.x 最新稳定），避免版本冲突。
-5. **StateGraph vs 手写状态机的关系**：智能问数的 `GraphConfiguration`（15 节点 StateGraph）专用于 Text2SQL 场景，与 JChatMind 的通用 Loop 不同。方案是——**通用对话走 JChatMind Loop，Text2SQL（商家问数）走 StateGraph**，两者共存于 savory-ai，按业务路由。
+5. **StateGraph vs 手写状态机的关系**：智能问数的 `GraphConfiguration`（15 节点 StateGraph）专用于 Text2SQL 场景，与 JChatMind 的通用 Loop 不同。方案是——**通用对话走 JChatMind Loop，Text2SQL（商家问数）走 StateGraph**，两者共存于 jiwei-ai，按业务路由。
 
 ---
 
@@ -136,7 +136,7 @@ savorylife 是一个「O2O 本地生活 + 内容社区 + AI Agent」全栈平台
 **改造要点**：
 - 新增 `pay_channel`、`pay_order`、`pay_notify_log`、`pay_account`、`pay_account_transaction` 表到 trade 库（借鉴 `sql/pay.sql`、`sql/pay_balance.sql`）。
 - 支付渠道 handler 落地为：`balance`（余额）、`mock`（开发）、`wechat`（V3 预留，骨架）。微信 V3 的 RSA 验签替换轮子里陈旧的 V2 MD5。
-- 单号生成用 `IdUtil.getSnowflakeNextIdStr()`（savorylife 已有），**不要**照搬轮子的 `Math.random()`。
+- 单号生成用 `IdUtil.getSnowflakeNextIdStr()`（JiweiLife 已有），**不要**照搬轮子的 `Math.random()`。
 - 「扣钱必须写流水」用 `@Transactional` 同事务保证，金额 `decimal`。
 
 #### 5.2.2 多实例 WebSocket 推送（借异步任务）
@@ -217,7 +217,7 @@ savorylife 是一个「O2O 本地生活 + 内容社区 + AI Agent」全栈平台
 
 ### 6.2 JChatMind 重写边界
 
-「完全用 JChatMind 重写」的准确含义：**用 JChatMind 的运行时（Loop+状态机+工具执行+多模型+RAG）替换「ChatClient 托管 ReAct」**，但以下 savory-ai 现有业务能力**必须保留并重写为 JChatMind 工具**：
+「完全用 JChatMind 重写」的准确含义：**用 JChatMind 的运行时（Loop+状态机+工具执行+多模型+RAG）替换「ChatClient 托管 ReAct」**，但以下 jiwei-ai 现有业务能力**必须保留并重写为 JChatMind 工具**：
 - `RecommendEngine`（推荐引擎）
 - `AuditAgent`（内容审核）
 - `EmbeddingConsumer`（RocketMQ 向量同步管道）
@@ -228,7 +228,7 @@ savorylife 是一个「O2O 本地生活 + 内容社区 + AI Agent」全栈平台
 ### 6.3 去同质化
 
 JChatMind 是付费星球项目、智能问数是二手开源（`io.github.qifan777`）。落地时：
-- 示例工具全部替换为 savorylife 真实业务工具（查订单、问经营数据、搜本地餐厅）。
+- 示例工具全部替换为 JiweiLife 真实业务工具（查订单、问经营数据、搜本地餐厅）。
 - 每个设计决策要能讲清「为什么」：为什么关闭 Spring AI 自动执行、为什么 pgvector 不用 Milvus、状态机怎么防死循环。
 
 ---
@@ -243,7 +243,7 @@ JChatMind 是付费星球项目、智能问数是二手开源（`io.github.qifan
 | 点赞对账 | `note.like_count`（social 库） | social 库 |
 | 支付流水 | `pay_order`/`pay_account`（trade 库） | trade 库 |
 
-**理由**：对账的终点是「修正权威数据」，该动作必须在权威数据所在库的本地事务内原子完成，否则变成跨库分布式事务。「统一对账库」只适合财务级稽核对账中心（异步抽取副本+差异），savorylife 暂无此诉求；将来数据大屏若要全局对账健康度，可异步汇聚成读模型，不参与修正。
+**理由**：对账的终点是「修正权威数据」，该动作必须在权威数据所在库的本地事务内原子完成，否则变成跨库分布式事务。「统一对账库」只适合财务级稽核对账中心（异步抽取副本+差异），JiweiLife 暂无此诉求；将来数据大屏若要全局对账健康度，可异步汇聚成读模型，不参与修正。
 
 ---
 
@@ -256,7 +256,7 @@ JChatMind 是付费星球项目、智能问数是二手开源（`io.github.qifan
    - 搭好 RocketMQ 广播消费、Redisson 限流降级的基建
    - 引入 bge-m3 Embedding（Ollama）
 
-2. **阶段二：AI 服务重写**（savory-ai，独立服务，隔离性最好）
+2. **阶段二：AI 服务重写**（jiwei-ai，独立服务，隔离性最好）
    - JChatMind 运行时落地 + 业务 Agent 重写为工具
    - 智能问数 SQL 校验 + 双通道 RAG 落地
 

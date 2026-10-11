@@ -1,10 +1,10 @@
 -- ==========================================
--- 知味生活 · SavoryLife
--- 数据库: savory_trade (交易数据库)
+-- 吉味生活 · JiweiLife
+-- 数据库: jiwei_trade (交易数据库)
 -- ==========================================
 
-CREATE DATABASE IF NOT EXISTS savory_trade DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE savory_trade;
+CREATE DATABASE IF NOT EXISTS jiwei_trade DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE jiwei_trade;
 
 -- 购物车表(MySQL兜底, 主存储为Redis)
 CREATE TABLE shopping_cart (

@@ -12,10 +12,10 @@
 
 ## Global Constraints
 
-- 后端根 `savory-life/savory-modules`，admin 根 `savory-life/savory-admin`，小程序根 `savory-life/savory-miniapp`
-- market 域 Service/Mapper 加 `@DS("market")`；新 CouponShare 相关类放 `com.savory.market.couponshare` 包
-- 短链服务 `ShortLinkService.create(String longUrl)` 在 `com.savory.market.shortlink.service`，构造注入；返回 shortCode
-- 券模板实体 `CouponTemplate`（`com.savory.pojo.entity`）字段：id/name/type(1满减2折扣3现金)/threshold/discountValue/totalCount/perUserLimit/validDays/status/createTime
+- 后端根 `jiwei-life/jiwei-modules`，admin 根 `jiwei-life/jiwei-admin`，小程序根 `jiwei-life/jiwei-miniapp`
+- market 域 Service/Mapper 加 `@DS("market")`；新 CouponShare 相关类放 `com.jiwei.market.couponshare` 包
+- 短链服务 `ShortLinkService.create(String longUrl)` 在 `com.jiwei.market.shortlink.service`，构造注入；返回 shortCode
+- 券模板实体 `CouponTemplate`（`com.jiwei.pojo.entity`）字段：id/name/type(1满减2折扣3现金)/threshold/discountValue/totalCount/perUserLimit/validDays/status/createTime
 - 领券：`POST /user/coupon/receive/{templateId}` 走登录态 `BaseContext`；**不改 receive**
 - 拦截器：`WebMvcConfiguration` 的 JwtTokenUserInterceptor 拦 `/user/**`；需 exclude `/user/coupon-share/**`
 - admin vite 代理：`/api`→rewrite→`/admin`，`/user`→8080 **不 rewrite**；故公开落地页请求须以 `/user/...` 开头（不经过管理端 http 实例的 `/api` baseURL）
@@ -27,21 +27,21 @@
 ### Task 1: 后端 CouponShareService + Controller + 拦截器放行
 
 **Files:**
-- Create: `savory-modules/src/main/java/com/savory/market/couponshare/service/CouponShareService.java`
-- Create: `savory-modules/src/main/java/com/savory/market/couponshare/service/impl/CouponShareServiceImpl.java`
-- Create: `savory-modules/src/main/java/com/savory/market/couponshare/controller/CouponShareController.java`
-- Modify: `savory-framework/src/main/java/com/savory/framework/config/WebMvcConfiguration.java`（加 exclude）
+- Create: `jiwei-modules/src/main/java/com/jiwei/market/couponshare/service/CouponShareService.java`
+- Create: `jiwei-modules/src/main/java/com/jiwei/market/couponshare/service/impl/CouponShareServiceImpl.java`
+- Create: `jiwei-modules/src/main/java/com/jiwei/market/couponshare/controller/CouponShareController.java`
+- Modify: `jiwei-framework/src/main/java/com/jiwei/framework/config/WebMvcConfiguration.java`（加 exclude）
 
 **Interfaces:**
-- Consumes: `ShortLinkService`（com.savory.market.shortlink.service）、`CouponTemplateMapper`（com.savory.market.mapper）、`@DS("market")`
+- Consumes: `ShortLinkService`（com.jiwei.market.shortlink.service）、`CouponTemplateMapper`（com.jiwei.market.mapper）、`@DS("market")`
 - Produces: `String createShareLink(Long templateId)` 返回短码；`CouponTemplate getShareInfo(Long templateId)`；`String generateMiniCode(Long templateId)` 返回占位图 URL 或 dataURL
 
 - [ ] **Step 1: 写 CouponShareService 接口**
 
 ```java
-package com.savory.market.couponshare.service;
+package com.jiwei.market.couponshare.service;
 
-import com.savory.pojo.entity.CouponTemplate;
+import com.jiwei.pojo.entity.CouponTemplate;
 
 public interface CouponShareService {
     /** 生成分享短链短码（longUrl = {base-url}/coupon-share?templateId={id}） */
@@ -56,13 +56,13 @@ public interface CouponShareService {
 - [ ] **Step 2: 写实现类**
 
 ```java
-package com.savory.market.couponshare.service.impl;
+package com.jiwei.market.couponshare.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
-import com.savory.market.couponshare.service.CouponShareService;
-import com.savory.market.mapper.CouponTemplateMapper;
-import com.savory.market.shortlink.service.ShortLinkService;
-import com.savory.pojo.entity.CouponTemplate;
+import com.jiwei.market.couponshare.service.CouponShareService;
+import com.jiwei.market.mapper.CouponTemplateMapper;
+import com.jiwei.market.shortlink.service.ShortLinkService;
+import com.jiwei.pojo.entity.CouponTemplate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -113,12 +113,12 @@ public class CouponShareServiceImpl implements CouponShareService {
 - [ ] **Step 3: 写 Controller（三接口）**
 
 ```java
-package com.savory.market.couponshare.controller;
+package com.jiwei.market.couponshare.controller;
 
-import com.savory.common.exception.BaseException;
-import com.savory.common.result.Result;
-import com.savory.market.couponshare.service.CouponShareService;
-import com.savory.pojo.entity.CouponTemplate;
+import com.jiwei.common.exception.BaseException;
+import com.jiwei.common.result.Result;
+import com.jiwei.market.couponshare.service.CouponShareService;
+import com.jiwei.pojo.entity.CouponTemplate;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
@@ -175,14 +175,14 @@ public class CouponShareController {
 
 - [ ] **Step 4: WebMvcConfiguration 放行公开路径**
 
-Modify `savory-framework/src/main/java/com/savory/framework/config/WebMvcConfiguration.java` 的 user 拦截器 exclude 列表（约 L43-45 附近）加一行：
+Modify `jiwei-framework/src/main/java/com/jiwei/framework/config/WebMvcConfiguration.java` 的 user 拦截器 exclude 列表（约 L43-45 附近）加一行：
 ```java
 .excludePathPatterns("/user/coupon-share/**")
 ```
 
 - [ ] **Step 5: 编译**
 
-Run: `cd /d/software/savorylife/savory-life && mvn compile -pl savory-framework,savory-modules -am -DskipTests`
+Run: `cd /d/software/savorylife/jiwei-life && mvn compile -pl jiwei-framework,jiwei-modules -am -DskipTests`
 Expected: BUILD SUCCESS
 
 - [ ] **Step 6: 验证接口（起后端后）**
@@ -192,8 +192,8 @@ Expected: 返回券模板 JSON
 - [ ] **Step 7: Commit**
 
 ```bash
-git add savory-modules/src/main/java/com/savory/market/couponshare \
-        savory-framework/src/main/java/com/savory/framework/config/WebMvcConfiguration.java
+git add jiwei-modules/src/main/java/com/jiwei/market/couponshare \
+        jiwei-framework/src/main/java/com/jiwei/framework/config/WebMvcConfiguration.java
 git commit -m "feat(coupon): add coupon-share public endpoints + interceptor exclusion"
 ```
 
@@ -202,9 +202,9 @@ git commit -m "feat(coupon): add coupon-share public endpoints + interceptor exc
 ### Task 2: admin 公开落地页 /coupon-share
 
 **Files:**
-- Create: `savory-admin/src/views/coupon/CouponShare.vue`
-- Modify: `savory-admin/src/router/index.ts`
-- Create(可选): `savory-admin/src/api/couponShare.ts`
+- Create: `jiwei-admin/src/views/coupon/CouponShare.vue`
+- Modify: `jiwei-admin/src/router/index.ts`
+- Create(可选): `jiwei-admin/src/api/couponShare.ts`
 
 **Interfaces:**
 - Consumes: 后端 `GET /user/coupon-share/info?templateId=`, `GET /user/coupon-share/minicode?templateId=`
@@ -212,7 +212,7 @@ git commit -m "feat(coupon): add coupon-share public endpoints + interceptor exc
 
 - [ ] **Step 1: 建公开 API 模块（不经管理端 http 的 /api rewrite）**
 
-Create `savory-admin/src/api/couponShare.ts`：
+Create `jiwei-admin/src/api/couponShare.ts`：
 ```ts
 import axios from 'axios'
 
@@ -226,7 +226,7 @@ export const getCouponShareMiniCode = (templateId: number) =>
 
 - [ ] **Step 2: 写 CouponShare.vue**
 
-Create `savory-admin/src/views/coupon/CouponShare.vue`：
+Create `jiwei-admin/src/views/coupon/CouponShare.vue`：
 ```vue
 <template>
   <div class="coupon-share-page">
@@ -296,7 +296,7 @@ onMounted(async () => {
 
 - [ ] **Step 3: 注册公开路由（独立于 MainLayout，仿 login）**
 
-Modify `savory-admin/src/router/index.ts`，在 `/login` 路由后加：
+Modify `jiwei-admin/src/router/index.ts`，在 `/login` 路由后加：
 ```ts
 {
   path: '/coupon-share',
@@ -308,15 +308,15 @@ Modify `savory-admin/src/router/index.ts`，在 `/login` 路由后加：
 
 - [ ] **Step 4: 类型检查**
 
-Run: `cd /d/software/savorylife/savory-life/savory-admin && npx vue-tsc --noEmit 2>&1 | tail -10`
+Run: `cd /d/software/savorylife/jiwei-life/jiwei-admin && npx vue-tsc --noEmit 2>&1 | tail -10`
 Expected: 无新增错误（`CouponTemplate` 类型若缺 type 字段报错则补）
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add savory-admin/src/views/coupon/CouponShare.vue \
-        savory-admin/src/router/index.ts \
-        savory-admin/src/api/couponShare.ts
+git add jiwei-admin/src/views/coupon/CouponShare.vue \
+        jiwei-admin/src/router/index.ts \
+        jiwei-admin/src/api/couponShare.ts
 git commit -m "feat(admin): public coupon-share landing page"
 ```
 
@@ -325,9 +325,9 @@ git commit -m "feat(admin): public coupon-share landing page"
 ### Task 3: 小程序 coupon 页分享 + 带参定位
 
 **Files:**
-- Modify: `savory-miniapp/src/pages/coupon/coupon.vue`
-- Modify: `savory-miniapp/src/App.vue`（onLaunch 读 templateId 存 store/storage）
-- Modify: `savory-miniapp/src/api/index.js`（加 createShareLink）
+- Modify: `jiwei-miniapp/src/pages/coupon/coupon.vue`
+- Modify: `jiwei-miniapp/src/App.vue`（onLaunch 读 templateId 存 store/storage）
+- Modify: `jiwei-miniapp/src/api/index.js`（加 createShareLink）
 
 **Interfaces:**
 - Consumes: 后端 `POST /user/coupon-share/link?templateId=`（需登录态，走现有 request）
@@ -335,7 +335,7 @@ git commit -m "feat(admin): public coupon-share landing page"
 
 - [ ] **Step 1: api 加分享短链方法**
 
-Modify `savory-miniapp/src/api/index.js`，在 coupon 区加：
+Modify `jiwei-miniapp/src/api/index.js`，在 coupon 区加：
 ```js
 // 生成优惠券分享短链
 export const createCouponShareLink = (templateId) => request({
@@ -348,7 +348,7 @@ export const createCouponShareLink = (templateId) => request({
 
 - [ ] **Step 2: App.vue onLaunch/onShow 处理分享带参**
 
-Modify `savory-miniapp/src/App.vue`（当前是 `<script setup>`，`import { onLaunch } from '@dcloudio/uni-app'`）：
+Modify `jiwei-miniapp/src/App.vue`（当前是 `<script setup>`，`import { onLaunch } from '@dcloudio/uni-app'`）：
 ```js
 <script setup>
 import { onLaunch, onShow } from '@dcloudio/uni-app'
@@ -375,7 +375,7 @@ onShow((options) => {
 
 - [ ] **Step 3: coupon.vue 加「分享」按钮 + onShareAppMessage + 带参定位**
 
-Modify `savory-miniapp/src/pages/coupon/coupon.vue`：
+Modify `jiwei-miniapp/src/pages/coupon/coupon.vue`：
 
 template：在每张券卡片的 receive-wrap 上方/旁加分享入口：
 ```html
@@ -473,15 +473,15 @@ style 加：
 
 - [ ] **Step 4: 构建验证**
 
-Run: `cd /d/software/savorylife/savory-life/savory-miniapp && npm run build:mp-weixin 2>&1 | tail -5`
+Run: `cd /d/software/savorylife/jiwei-life/jiwei-miniapp && npm run build:mp-weixin 2>&1 | tail -5`
 Expected: DONE Build complete
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add savory-miniapp/src/pages/coupon/coupon.vue \
-        savory-miniapp/src/App.vue \
-        savory-miniapp/src/api/index.js
+git add jiwei-miniapp/src/pages/coupon/coupon.vue \
+        jiwei-miniapp/src/App.vue \
+        jiwei-miniapp/src/api/index.js
 git commit -m "feat(miniapp): coupon share button + share card param landing"
 ```
 
@@ -493,9 +493,9 @@ git commit -m "feat(miniapp): coupon share button + share card param landing"
 
 Run:
 ```bash
-cd /d/software/savorylife/savory-life && mvn install -pl savory-framework,savory-modules -am -DskipTests
+cd /d/software/savorylife/jiwei-life && mvn install -pl jiwei-framework,jiwei-modules -am -DskipTests
 # 起后端（确保 MySQL/Redis 在跑）
-cd savory-modules && mvn spring-boot:run
+cd jiwei-modules && mvn spring-boot:run
 ```
 
 - [ ] **Step 2: 验证公开接口**

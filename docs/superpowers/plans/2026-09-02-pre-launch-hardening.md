@@ -16,11 +16,11 @@
 
 ## Global Constraints
 
-- 后端根目录：`savory-life/savory-modules`；框架模块：`savory-life/savory-framework`；实体模块：`savory-life/savory-pojo`
+- 后端根目录：`jiwei-life/jiwei-modules`；框架模块：`jiwei-life/jiwei-framework`；实体模块：`jiwei-life/jiwei-pojo`
 - Java 编译目标 JDK 21；测试用 JUnit5（spring-boot-starter-test 已含，无需新增依赖）
-- 数据库共 6 库，订单在 `savory_trade.orders`，秒杀活动在 `savory_market.seckill_activity`，支付单在 `savory_trade.pay_order`
-- MySQL 容器：`docker exec savory-mysql mysql -uroot -proot123`
-- Redis 容器：`docker exec savory-redis redis-cli`
+- 数据库共 6 库，订单在 `jiwei_trade.orders`，秒杀活动在 `jiwei_market.seckill_activity`，支付单在 `jiwei_trade.pay_order`
+- MySQL 容器：`docker exec jiwei-mysql mysql -uroot -proot123`
+- Redis 容器：`docker exec jiwei-redis redis-cli`
 - 改 common/pojo/framework 后必须 `mvn install` 再 `spring-boot:run`，否则 ClassNotFoundException
 - 秒杀订单状态常量：`Orders.PENDING_PAYMENT=1`、`CANCELLED=6`（表 `status` 1待支付 2待接单 3备货中 4待取餐 5已完成 6已取消 7已退款）
 - 秒杀 Redis 键：`seckill:stock:{activityId}:{dishId}`（String）、`seckill:users:{activityId}`（Hash）
@@ -30,7 +30,7 @@
 
 ## Phase A：清洗脏订单
 
-**背景**：`savory_trade.orders` 有 995 条 `pay_status=1 AND status=6` 的脏订单，全部**无 `pay_order` 支付单佐证**（`has_pay_order=0`），order 号 SV 开头、`pay_time` 为 mock 随机值。这些是早期测试污染——订单标记「已支付」但从未真实支付、且已取消。需把 `pay_status` 从 1 纠正为 0（未支付），保持 `status=6`（已取消）不变，使「已支付」与「已取消」不再矛盾。
+**背景**：`jiwei_trade.orders` 有 995 条 `pay_status=1 AND status=6` 的脏订单，全部**无 `pay_order` 支付单佐证**（`has_pay_order=0`），order 号 SV 开头、`pay_time` 为 mock 随机值。这些是早期测试污染——订单标记「已支付」但从未真实支付、且已取消。需把 `pay_status` 从 1 纠正为 0（未支付），保持 `status=6`（已取消）不变，使「已支付」与「已取消」不再矛盾。
 
 ### Task A1：审计脏订单构成
 
@@ -41,15 +41,15 @@
 
 Run:
 ```bash
-docker exec savory-mysql mysql -uroot -proot123 -e "
+docker exec jiwei-mysql mysql -uroot -proot123 -e "
 SELECT
   CASE WHEN pay_time IS NULL THEN 'pay_time_NULL' ELSE 'pay_time_SET' END AS flag,
   COUNT(*) cnt
-FROM savory_trade.orders
+FROM jiwei_trade.orders
 WHERE pay_status=1 AND status=6
 GROUP BY flag;
 SELECT COUNT(*) orders_with_payorder
-FROM savory_trade.orders o JOIN savory_trade.pay_order p ON p.out_order_no=o.number
+FROM jiwei_trade.orders o JOIN jiwei_trade.pay_order p ON p.out_order_no=o.number
 WHERE o.pay_status=1;
 "
 ```
@@ -59,7 +59,7 @@ Expected: `pay_time_NULL` + `pay_time_SET` 合计 995；`orders_with_payorder` =
 
 Run:
 ```bash
-docker exec savory-mysql mysql -uroot -proot123 -e "SELECT COUNT(*) total, SUM(status=6) cancelled, SUM(pay_status=1) paid FROM savory_trade.orders;"
+docker exec jiwei-mysql mysql -uroot -proot123 -e "SELECT COUNT(*) total, SUM(status=6) cancelled, SUM(pay_status=1) paid FROM jiwei_trade.orders;"
 ```
 Expected: total=4039, cancelled=1356, paid=3338（作为清洗前基线）。
 
@@ -79,10 +79,10 @@ git add -A && git commit -m "docs: pre-launch plan phase A baseline"
 Run:
 ```bash
 # 备份（记录受影响行）
-docker exec savory-mysql mysql -uroot -proot123 -e "
-SELECT COUNT(*) FROM savory_trade.orders
+docker exec jiwei-mysql mysql -uroot -proot123 -e "
+SELECT COUNT(*) FROM jiwei_trade.orders
 WHERE pay_status=1 AND status=6
-  AND NOT EXISTS (SELECT 1 FROM savory_trade.pay_order p WHERE p.out_order_no=orders.number);
+  AND NOT EXISTS (SELECT 1 FROM jiwei_trade.pay_order p WHERE p.out_order_no=orders.number);
 " > /tmp/dirty_before.txt
 cat /tmp/dirty_before.txt
 ```
@@ -92,11 +92,11 @@ Expected: 995
 
 Run:
 ```bash
-docker exec savory-mysql mysql -uroot -proot123 -e "
-UPDATE savory_trade.orders o
+docker exec jiwei-mysql mysql -uroot -proot123 -e "
+UPDATE jiwei_trade.orders o
 SET o.pay_status = 0, o.update_time = NOW()
 WHERE o.pay_status = 1 AND o.status = 6
-  AND NOT EXISTS (SELECT 1 FROM savory_trade.pay_order p WHERE p.out_order_no = o.number);
+  AND NOT EXISTS (SELECT 1 FROM jiwei_trade.pay_order p WHERE p.out_order_no = o.number);
 "
 ```
 Expected: `Rows matched: 995  Changed: 995`
@@ -105,9 +105,9 @@ Expected: `Rows matched: 995  Changed: 995`
 
 Run:
 ```bash
-docker exec savory-mysql mysql -uroot -proot123 -e "
-SELECT COUNT(*) remaining_dirty FROM savory_trade.orders WHERE pay_status=1 AND status=6;
-SELECT COUNT(*) total, SUM(status=6) cancelled, SUM(pay_status=1) paid FROM savory_trade.orders;
+docker exec jiwei-mysql mysql -uroot -proot123 -e "
+SELECT COUNT(*) remaining_dirty FROM jiwei_trade.orders WHERE pay_status=1 AND status=6;
+SELECT COUNT(*) total, SUM(status=6) cancelled, SUM(pay_status=1) paid FROM jiwei_trade.orders;
 "
 ```
 Expected: `remaining_dirty=0`；`paid` 从 3338 减到 2343（3338-995）；`cancelled=1356` 不变。
@@ -134,7 +134,7 @@ git add -A && git commit -m "fix(data): correct 995 dirty orders pay_status from
 ### Task B1：测试 handleTimeoutOrder 的 CAS 语义
 
 **Files:**
-- Create: `savory-modules/src/test/java/com/savory/trade/service/impl/OrderServiceImplTest.java`
+- Create: `jiwei-modules/src/test/java/com/jiwei/trade/service/impl/OrderServiceImplTest.java`
 
 **Interfaces:**
 - Consumes: `OrderMapper.cancelPendingIfUnpaid(Long orderId) -> int`（返回 0 表示状态已变更）
@@ -144,12 +144,12 @@ git add -A && git commit -m "fix(data): correct 995 dirty orders pay_status from
 - [ ] **Step 1: 写失败测试（已支付订单不会被取消）**
 
 ```java
-package com.savory.trade.service.impl;
+package com.jiwei.trade.service.impl;
 
-import com.savory.market.service.SeckillService;
-import com.savory.market.service.CouponService;
-import com.savory.pojo.entity.Orders;
-import com.savory.trade.mapper.OrderMapper;
+import com.jiwei.market.service.SeckillService;
+import com.jiwei.market.service.CouponService;
+import com.jiwei.pojo.entity.Orders;
+import com.jiwei.trade.mapper.OrderMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -174,12 +174,12 @@ class OrderServiceImplTest {
 
 - [ ] **Step 2: 运行确认失败（编译失败即失败信号）**
 
-Run: `cd savory-life && mvn test -pl savory-modules -Dtest=OrderServiceImplTest`
+Run: `cd jiwei-life && mvn test -pl jiwei-modules -Dtest=OrderServiceImplTest`
 Expected: 编译错误（service 字段私有、无构造器，无法直接构造）——这正是需要引入可测试性改造的信号。
 
 - [ ] **Step 3: 给 OrderServiceImpl 加包内可见构造器（最小可测试性改造）**
 
-Modify: `savory-modules/src/main/java/com/savory/trade/service/impl/OrderServiceImpl.java`
+Modify: `jiwei-modules/src/main/java/com/jiwei/trade/service/impl/OrderServiceImpl.java`
 在类上新增构造器（保留 @Autowired 字段注入不变，测试用构造器）：
 ```java
 // 测试用构造器：避免反射注入私有字段
@@ -193,15 +193,15 @@ OrderServiceImpl(OrderMapper orderMapper, SeckillService seckillService,
 - [ ] **Step 4: 用 ReflectionTestUtils 写真实测试**
 
 ```java
-package com.savory.trade.service.impl;
+package com.jiwei.trade.service.impl;
 
-import com.savory.market.service.CouponService;
-import com.savory.market.service.SeckillService;
-import com.savory.pojo.entity.Orders;
-import com.savory.trade.mapper.OrderMapper;
-import com.savory.trade.mq.OrderMessageProducer;
-import com.savory.trade.pay.service.PayOrderService;
-import com.savory.trade.service.OrderService;
+import com.jiwei.market.service.CouponService;
+import com.jiwei.market.service.SeckillService;
+import com.jiwei.pojo.entity.Orders;
+import com.jiwei.trade.mapper.OrderMapper;
+import com.jiwei.trade.mq.OrderMessageProducer;
+import com.jiwei.trade.pay.service.PayOrderService;
+import com.jiwei.trade.service.OrderService;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -257,20 +257,20 @@ class OrderServiceImplTest {
 
 - [ ] **Step 5: 运行测试确认通过**
 
-Run: `cd savory-life && mvn test -pl savory-modules -Dtest=OrderServiceImplTest`
+Run: `cd jiwei-life && mvn test -pl jiwei-modules -Dtest=OrderServiceImplTest`
 Expected: 2 tests passed, 0 failures
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add savory-modules/src/test/java/com/savory/trade/service/impl/OrderServiceImplTest.java
+git add jiwei-modules/src/test/java/com/jiwei/trade/service/impl/OrderServiceImplTest.java
 git commit -m "test: add CAS timeout-order regression tests"
 ```
 
 ### Task B2：测试秒杀消费者重复投递不重复扣库存
 
 **Files:**
-- Create: `savory-modules/src/test/java/com/savory/market/seckill/mq/SeckillOrderCreateConsumerTest.java`
+- Create: `jiwei-modules/src/test/java/com/jiwei/market/seckill/mq/SeckillOrderCreateConsumerTest.java`
 
 **Interfaces:**
 - Consumes: `OrderService.seckillOrderExists(String orderNo) -> boolean`
@@ -280,11 +280,11 @@ git commit -m "test: add CAS timeout-order regression tests"
 - [ ] **Step 1: 写失败测试（重复投递时不再扣库存）**
 
 ```java
-package com.savory.market.seckill.mq;
+package com.jiwei.market.seckill.mq;
 
 import com.alibaba.fastjson2.JSON;
-import com.savory.market.service.SeckillService;
-import com.savory.trade.service.OrderService;
+import com.jiwei.market.service.SeckillService;
+import com.jiwei.trade.service.OrderService;
 import org.apache.rocketmq.common.message.Message;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -328,12 +328,12 @@ class SeckillOrderCreateConsumerTest {
 
 - [ ] **Step 2: 运行确认失败**
 
-Run: `mvn test -pl savory-modules -Dtest=SeckillOrderCreateConsumerTest`
+Run: `mvn test -pl jiwei-modules -Dtest=SeckillOrderCreateConsumerTest`
 Expected: 编译失败（listener 私有不可测）——需要小改造。
 
 - [ ] **Step 3: 抽取消费者核心逻辑为包内可见方法（可测试性改造）**
 
-Modify: `savory-modules/src/main/java/com/savory/market/seckill/mq/SeckillOrderCreateConsumer.java`
+Modify: `jiwei-modules/src/main/java/com/jiwei/market/seckill/mq/SeckillOrderCreateConsumer.java`
 把消息处理循环体抽成包内可见方法，供测试直接调用：
 ```java
 // 包内可见：供单测直接调用，生产仍由 MQ listener 驱动
@@ -351,7 +351,7 @@ long handleMessage(SeckillMessage message) {
     try {
         orderService.createSeckillOrder(message);
         return 1L;
-    } catch (com.savory.common.exception.OrderBusinessException e) {
+    } catch (com.jiwei.common.exception.OrderBusinessException e) {
         seckillService.restoreStock(message.activityId(), message.quantity());
         seckillService.revertRedisStock(message.activityId(), message.dishId(),
                 message.userId(), message.quantity());
@@ -398,21 +398,21 @@ void freshDeliveryDeductsThenCreatesOrder() {
 
 - [ ] **Step 5: 运行测试确认通过**
 
-Run: `mvn test -pl savory-modules -Dtest=SeckillOrderCreateConsumerTest`
+Run: `mvn test -pl jiwei-modules -Dtest=SeckillOrderCreateConsumerTest`
 Expected: 3 tests passed（跳过、成功建单 + 库存不足），0 failures
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add savory-modules/src/main/java/com/savory/market/seckill/mq/SeckillOrderCreateConsumer.java \
-        savory-modules/src/test/java/com/savory/market/seckill/mq/SeckillOrderCreateConsumerTest.java
+git add jiwei-modules/src/main/java/com/jiwei/market/seckill/mq/SeckillOrderCreateConsumer.java \
+        jiwei-modules/src/test/java/com/jiwei/market/seckill/mq/SeckillOrderCreateConsumerTest.java
 git commit -m "test+refactor: expose seckill consumer handler for idempotency tests"
 ```
 
 ### Task B3：测试秒杀 MQ 发送失败回滚 Redis
 
 **Files:**
-- Create: `savory-modules/src/test/java/com/savory/market/service/impl/SeckillServiceImplTest.java`
+- Create: `jiwei-modules/src/test/java/com/jiwei/market/service/impl/SeckillServiceImplTest.java`
 
 **Interfaces:**
 - Consumes: `OrderMessageProducer.sendSeckillOrder(SeckillMessage) throws Exception`（失败抛异常）
@@ -421,14 +421,14 @@ git commit -m "test+refactor: expose seckill consumer handler for idempotency te
 - [ ] **Step 1: 写失败测试（MQ 发送失败时回滚 Redis 库存）**
 
 ```java
-package com.savory.market.service.impl;
+package com.jiwei.market.service.impl;
 
-import com.savory.common.context.BaseContext;
-import com.savory.common.exception.OrderBusinessException;
-import com.savory.market.dto.SeckillBuyDTO;
-import com.savory.market.mapper.SeckillActivityMapper;
-import com.savory.pojo.entity.SeckillActivity;
-import com.savory.trade.mq.OrderMessageProducer;
+import com.jiwei.common.context.BaseContext;
+import com.jiwei.common.exception.OrderBusinessException;
+import com.jiwei.market.dto.SeckillBuyDTO;
+import com.jiwei.market.mapper.SeckillActivityMapper;
+import com.jiwei.pojo.entity.SeckillActivity;
+import com.jiwei.trade.mq.OrderMessageProducer;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -486,20 +486,20 @@ class SeckillServiceImplTest {
 
 - [ ] **Step 2: 运行确认失败**
 
-Run: `mvn test -pl savory-modules -Dtest=SeckillServiceImplTest`
+Run: `mvn test -pl jiwei-modules -Dtest=SeckillServiceImplTest`
 Expected: 失败——`seckillBuy` 若未正确处理 MQ 异常，`revertRedisStock` 不会被调用。
 
 > 注：当前代码已修过该缺陷，测试应通过。此步验证回归测试有效。
 
 - [ ] **Step 3: 运行确认通过**
 
-Run: `mvn test -pl savory-modules -Dtest=SeckillServiceImplTest`
+Run: `mvn test -pl jiwei-modules -Dtest=SeckillServiceImplTest`
 Expected: 1 test passed
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add savory-modules/src/test/java/com/savory/market/service/impl/SeckillServiceImplTest.java
+git add jiwei-modules/src/test/java/com/jiwei/market/service/impl/SeckillServiceImplTest.java
 git commit -m "test: add seckill MQ-failure rollback regression test"
 ```
 
@@ -507,12 +507,12 @@ git commit -m "test: add seckill MQ-failure rollback regression test"
 
 - [ ] **Step 1: 运行全部模块测试**
 
-Run: `cd savory-life && mvn test -pl savory-common,savory-pojo,savory-framework,savory-modules -am`
+Run: `cd jiwei-life && mvn test -pl jiwei-common,jiwei-pojo,jiwei-framework,jiwei-modules -am`
 Expected: 原 8 个测试 + 新增测试全部通过
 
 - [ ] **Step 2: 确认测试不会因缺少 Docker 中间件而失败（单测不连真实 Redis/MQ）**
 
-Run: `mvn test -pl savory-modules -Dtest='*Test' 2>&1 | tail -20`
+Run: `mvn test -pl jiwei-modules -Dtest='*Test' 2>&1 | tail -20`
 Expected: 单测用 mock，无 Spring 上下文，不依赖中间件
 
 - [ ] **Step 3: Commit**
@@ -551,7 +551,7 @@ Expected: 显示版本信息
 ### Task C2：创建秒杀压测脚本
 
 **Files:**
-- Create: `savory-modules/src/test/jmeter/seckill-load.jmx`
+- Create: `jiwei-modules/src/test/jmeter/seckill-load.jmx`
 
 - [ ] **Step 1: 编写 .jmx 秒杀压测计划**
 
@@ -611,7 +611,7 @@ Expected: 显示版本信息
 
 - [ ] **Step 2: 预生成 100 个测试 token**
 
-Create: `savory-modules/src/test/jmeter/gen_tokens.sh`
+Create: `jiwei-modules/src/test/jmeter/gen_tokens.sh`
 ```bash
 #!/bin/bash
 # 生成 N 个压测用户的登录 token 写入 tokens.csv
@@ -630,11 +630,11 @@ echo "generated $(wc -l < tokens.csv) tokens"
 Run:
 ```bash
 # 重置活动5库存到 50
-docker exec savory-mysql mysql -uroot -proot123 -e "UPDATE savory_market.seckill_activity SET stock=50, sold=0 WHERE id=5;"
-docker exec savory-redis redis-cli set seckill:stock:5:5 50
-docker exec savory-redis redis-cli del seckill:users:5
+docker exec jiwei-mysql mysql -uroot -proot123 -e "UPDATE jiwei_market.seckill_activity SET stock=50, sold=0 WHERE id=5;"
+docker exec jiwei-redis redis-cli set seckill:stock:5:5 50
+docker exec jiwei-redis redis-cli del seckill:users:5
 # 跑压测
-/d/software/apache-jmeter-5.6.3/bin/jmeter -n -t savory-modules/src/test/jmeter/seckill-load.jmx -l /tmp/seckill.jtl -e -o /tmp/seckill-report
+/d/software/apache-jmeter-5.6.3/bin/jmeter -n -t jiwei-modules/src/test/jmeter/seckill-load.jmx -l /tmp/seckill.jtl -e -o /tmp/seckill-report
 ```
 Expected: 生成报告 `/tmp/seckill-report/index.html`
 
@@ -642,21 +642,21 @@ Expected: 生成报告 `/tmp/seckill-report/index.html`
 
 Run:
 ```bash
-docker exec savory-redis redis-cli get seckill:stock:5:5
-docker exec savory-mysql mysql -uroot -proot123 -e "SELECT stock, sold FROM savory_market.seckill_activity WHERE id=5;"
-docker exec savory-mysql mysql -uroot -proot123 -e "SELECT COUNT(*) FROM savory_trade.orders WHERE seckill_activity_id=5 AND is_seckill=1;"
+docker exec jiwei-redis redis-cli get seckill:stock:5:5
+docker exec jiwei-mysql mysql -uroot -proot123 -e "SELECT stock, sold FROM jiwei_market.seckill_activity WHERE id=5;"
+docker exec jiwei-mysql mysql -uroot -proot123 -e "SELECT COUNT(*) FROM jiwei_trade.orders WHERE seckill_activity_id=5 AND is_seckill=1;"
 ```
 Expected: Redis库存 + 订单数 = 初始 50；DB sold = 订单数；**无超卖**（订单数 ≤ 50）
 
 - [ ] **Step 5: 记录基准数据到报告**
 
-Create: `savory-modules/src/test/jmeter/BENCHMARK.md`
+Create: `jiwei-modules/src/test/jmeter/BENCHMARK.md`
 记录：并发数、成功数、失败原因分布、TPS、p95 延迟、三方一致性结果。
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add savory-modules/src/test/jmeter/
+git add jiwei-modules/src/test/jmeter/
 git commit -m "test: add jmeter seckill load test and benchmark"
 ```
 
@@ -681,7 +681,7 @@ git commit -m "test: add jmeter seckill load test and benchmark"
 ### Task D1：RocketMQ 配置加 TransactionMQProducer
 
 **Files:**
-- Modify: `savory-framework/src/main/java/com/savory/framework/config/RocketMQConfiguration.java`
+- Modify: `jiwei-framework/src/main/java/com/jiwei/framework/config/RocketMQConfiguration.java`
 
 - [ ] **Step 1: 新增 TransactionMQProducer Bean**
 
@@ -700,20 +700,20 @@ public TransactionMQProducer rocketMQTransactionProducer() throws MQClientExcept
 
 - [ ] **Step 2: 编译验证**
 
-Run: `cd savory-life && mvn compile -pl savory-framework -am -DskipTests`
+Run: `cd jiwei-life && mvn compile -pl jiwei-framework -am -DskipTests`
 Expected: BUILD SUCCESS
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add savory-framework/src/main/java/com/savory/framework/config/RocketMQConfiguration.java
+git add jiwei-framework/src/main/java/com/jiwei/framework/config/RocketMQConfiguration.java
 git commit -m "feat(mq): add TransactionMQProducer bean"
 ```
 
 ### Task D2：新增秒杀事务消息监听器
 
 **Files:**
-- Create: `savory-modules/src/main/java/com/savory/market/seckill/mq/SeckillTransactionListener.java`
+- Create: `jiwei-modules/src/main/java/com/jiwei/market/seckill/mq/SeckillTransactionListener.java`
 
 **Interfaces:**
 - Consumes: `SeckillService.seckillBuyTx(...)`（下一任务新增的本地事务方法）
@@ -722,10 +722,10 @@ git commit -m "feat(mq): add TransactionMQProducer bean"
 - [ ] **Step 1: 编写 TransactionListener**
 
 ```java
-package com.savory.market.seckill.mq;
+package com.jiwei.market.seckill.mq;
 
 import com.alibaba.fastjson2.JSON;
-import com.savory.market.service.SeckillService;
+import com.jiwei.market.service.SeckillService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.client.producer.LocalTransactionState;
@@ -778,7 +778,7 @@ public class SeckillTransactionListener implements TransactionListener {
 
 - [ ] **Step 2: 编译验证**
 
-Run: `mvn compile -pl savory-modules -am -DskipTests`
+Run: `mvn compile -pl jiwei-modules -am -DskipTests`
 Expected: BUILD SUCCESS（`preDeductSeckillStock` / `isPreDeducted` 尚未实现，编译会报错——这是预期信号，进入 D3 补齐）
 
 - [ ] **Step 3: Commit（先提交 listener 骨架，方法待 D3 实现）**
@@ -788,8 +788,8 @@ Expected: BUILD SUCCESS（`preDeductSeckillStock` / `isPreDeducted` 尚未实现
 ### Task D3：SeckillService 增加事务扣减方法
 
 **Files:**
-- Modify: `savory-modules/src/main/java/com/savory/market/service/SeckillService.java`
-- Modify: `savory-modules/src/main/java/com/savory/market/service/impl/SeckillServiceImpl.java`
+- Modify: `jiwei-modules/src/main/java/com/jiwei/market/service/SeckillService.java`
+- Modify: `jiwei-modules/src/main/java/com/jiwei/market/service/impl/SeckillServiceImpl.java`
 
 **Interfaces:**
 - Produces: `boolean preDeductSeckillStock(SeckillMessage)`——Redis Lua 预扣库存+限购+写预扣标记
@@ -925,12 +925,12 @@ public Long seckillBuy(SeckillBuyDTO dto) {
 
 - [ ] **Step 5: 编译验证**
 
-Run: `mvn compile -pl savory-modules -am -DskipTests`
+Run: `mvn compile -pl jiwei-modules -am -DskipTests`
 Expected: BUILD SUCCESS
 
 - [ ] **Step 6: 更新 B3 测试（SeckillServiceImplTest 适配事务消息）**
 
-Modify: `savory-modules/src/test/java/com/savory/market/service/impl/SeckillServiceImplTest.java`
+Modify: `jiwei-modules/src/test/java/com/jiwei/market/service/impl/SeckillServiceImplTest.java`
 原「`sendSeckillOrder` 失败回滚」测试改为：mock `transactionProducer.sendMessageInTransaction` 返回 `ROLLBACK_MESSAGE`，断言 `seckillBuy` 抛 `OrderBusinessException`，并 `verify(spy).rollbackPreDeduct(message)`。
 
 ```java
@@ -968,16 +968,16 @@ void transactionRollbackShouldThrowAndCallRollbackPreDeduct() throws Exception {
 
 - [ ] **Step 7: 运行测试确认通过**
 
-Run: `mvn test -pl savory-modules -Dtest='Seckill*Test,OrderServiceImplTest,SeckillOrderCreateConsumerTest'`
+Run: `mvn test -pl jiwei-modules -Dtest='Seckill*Test,OrderServiceImplTest,SeckillOrderCreateConsumerTest'`
 Expected: 全部通过
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add savory-modules/src/main/java/com/savory/market/service/SeckillService.java \
-        savory-modules/src/main/java/com/savory/market/service/impl/SeckillServiceImpl.java \
-        savory-modules/src/main/java/com/savory/market/seckill/mq/SeckillTransactionListener.java \
-        savory-modules/src/test/java/com/savory/market/service/impl/SeckillServiceImplTest.java
+git add jiwei-modules/src/main/java/com/jiwei/market/service/SeckillService.java \
+        jiwei-modules/src/main/java/com/jiwei/market/service/impl/SeckillServiceImpl.java \
+        jiwei-modules/src/main/java/com/jiwei/market/seckill/mq/SeckillTransactionListener.java \
+        jiwei-modules/src/test/java/com/jiwei/market/service/impl/SeckillServiceImplTest.java
 git commit -m "feat(seckill): transactional message for atomic stock-deduct + order-create"
 ```
 
@@ -987,9 +987,9 @@ git commit -m "feat(seckill): transactional message for atomic stock-deduct + or
 
 Run:
 ```bash
-cd savory-life && mvn install -pl savory-common,savory-pojo,savory-framework,savory-modules -am -DskipTests
+cd jiwei-life && mvn install -pl jiwei-common,jiwei-pojo,jiwei-framework,jiwei-modules -am -DskipTests
 # 杀 8080 旧进程后重启
-cd savory-modules && mvn spring-boot:run
+cd jiwei-modules && mvn spring-boot:run
 ```
 Expected: 启动无报错，日志出现 TransactionProducer 初始化成功
 
@@ -1002,15 +1002,15 @@ Expected: 返回 code=1 + orderNo；DB 出现秒杀订单；库存正确扣减
 
 Run:
 ```bash
-docker stop savory-rmq-broker
+docker stop jiwei-rmq-broker
 # 调秒杀接口
-docker start savory-rmq-broker
+docker start jiwei-rmq-broker
 ```
 Expected: 秒杀接口返回「系统繁忙」类失败；**Redis 库存已回滚**（不流失）；broker 恢复后无残留半消息
 
 - [ ] **Step 4: 运行 B2/B3 全量回归**
 
-Run: `mvn test -pl savory-modules -Dtest='*Test'`
+Run: `mvn test -pl jiwei-modules -Dtest='*Test'`
 Expected: 全部通过
 
 - [ ] **Step 5: Commit**

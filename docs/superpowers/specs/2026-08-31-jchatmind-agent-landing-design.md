@@ -5,17 +5,17 @@
 
 ## 1. 背景与目标
 
-JChatMind 是 savory-ai 中基于 Spring AI 的智能 Agent 运行时，已实现 Think-Execute 循环、工具调用、SSE 实时推送、多模型切换。当前差距：
+JChatMind 是 jiwei-ai 中基于 Spring AI 的智能 Agent 运行时，已实现 Think-Execute 循环、工具调用、SSE 实时推送、多模型切换。当前差距：
 
 - 商家端已接入 `/ai/merchant/stream`（SSE），但无模型切换、无会话续接、不展示工具调用过程
 - 用户端小程序 `aichat.vue` 只是语义搜索，未使用 Agent 能力（小程序不支持 SSE 是根因）
 - 管理端完全没有 AI 智能体助手
 
-目标：让 JChatMind 真正成为 savory-life 三个端的一部分 —— 管理端新增运营智能助手、商家端增强、用户端接入 Agent，并支持多轮会话与模型切换。
+目标：让 JChatMind 真正成为 jiwei-life 三个端的一部分 —— 管理端新增运营智能助手、商家端增强、用户端接入 Agent，并支持多轮会话与模型切换。
 
 ## 2. 现状（已核实）
 
-### AI 服务（savory-ai :8087）
+### AI 服务（jiwei-ai :8087）
 - `JChatMind`：完整 Agent 循环（状态机 IDLE→THINKING/EXECUTING→FINISHED/ERROR；maxSteps=8 默认；30s 超时；内存窗口记忆 20 条）。**缺陷：直接依赖 `SseService`，无法非流式返回**
 - `ChatClientRegistry`：deepseek / kimi / qwen 三模型按 key 切换 ✓
 - `ExploreAgent`（探店，4 工具：语义搜索餐厅/用户偏好/附近POI/天气）
@@ -34,7 +34,7 @@ JChatMind 是 savory-ai 中基于 Spring AI 的智能 Agent 运行时，已实�
 
 ```
 商家端 AiAssistant ──SSE──▶ ┌──────────────────────┐
-管理端 AgentAssistant ─SSE─▶ │  savory-ai :8087     │
+管理端 AgentAssistant ─SSE─▶ │  jiwei-ai :8087     │
 小程序 aichat ──JSON─▶      │  JChatMind Agent 循环 │
                              │  (Think-Execute)     │
    ┌─────────────────────────┤                      │
@@ -75,7 +75,7 @@ JChatMind 是 savory-ai 中基于 Spring AI 的智能 Agent 运行时，已实�
 - systemPrompt：平台运营助手，工具集：
   - `queryPlatformData(sqlHint)`：Text2SQL 查全平台经营数据（复用 `SqlValidator` + `bizJdbcTemplate`，白名单只读）
   - `auditContent(content, contentType)`：委托 `AuditAgent.audit`
-  - `searchKnowledgeBase(query)`：`RagService.semanticSearch(query, "savory_ops", 5)`
+  - `searchKnowledgeBase(query)`：`RagService.semanticSearch(query, "jiwei_ops", 5)`
   - `merchantSuggestion(merchantId)`：查该商户订单/评价聚合 → ChatClient 生成经营建议
 - 新增 SSE 接口 `GET /ai/admin/stream?message&empId&model&conversationId`
 

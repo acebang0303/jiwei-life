@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 用支付中台的「渠道策略+工厂 → 幂等三重 → 验签 → 查单补偿」替换 savorylife 交易域里 `OrderServiceImpl.pay()`/`refund()` 的「直接标已支付/已退款」浅实现；同时把单机 `@ServerEndpoint` WebSocket 升级为「RocketMQ 广播消费 + 本机过滤 + Redis 会话注册」的多实例定向推送。
+**Goal:** 用支付中台的「渠道策略+工厂 → 幂等三重 → 验签 → 查单补偿」替换 JiweiLife 交易域里 `OrderServiceImpl.pay()`/`refund()` 的「直接标已支付/已退款」浅实现；同时把单机 `@ServerEndpoint` WebSocket 升级为「RocketMQ 广播消费 + 本机过滤 + Redis 会话注册」的多实例定向推送。
 
 **Architecture:** 引入独立支付单 `pay_order`（`out_order_no` 关联 `orders.number`），支付能力从订单解耦。渠道差异收敛在 `IPayChannelHandler` 实现内（`balance` 余额 / `mock` 开发 / `wechat` V3 骨架）；幂等靠三重防线——CAS `updateOrderPaid`（`status='0'` 前置条件）+ 唯一键 `uk_type_biz`（流水防重）+ 条件扣减 `deductBalance`（`balance >= amount`）。支付成功入账后发 RocketMQ 消息，由订单消费者回写 `orders.pay_status`，再由广播消费者推送到各实例的商家 WebSocket 连接。
 
@@ -16,7 +16,7 @@
 
 ## Global Constraints
 
-- 包名统一 `com.savory.trade`（沿用现有 trade 包结构）；支付中台子包 `com.savory.trade.pay.*`；实体放 `com.savory.pojo.entity`
+- 包名统一 `com.jiwei.trade`（沿用现有 trade 包结构）；支付中台子包 `com.jiwei.trade.pay.*`；实体放 `com.jiwei.pojo.entity`
 - RocketMQ 用原生 `rocketmq-client`（框架已提供 `DefaultMQProducer` bean，见 `RocketMQConfiguration`），**不**引入 `rocketmq-spring-boot-starter`
 - 单号用 `IdUtil.getSnowflakeNextIdStr()`，**不要**照搬轮子的 `Math.random()` 拼接（`generateOrderNo`/`generateTransNo`）
 - 金额一律 `BigDecimal`（`DECIMAL(10,2)`），扣款与流水同事务
@@ -28,45 +28,45 @@
 
 ## File Structure 概览
 
-**新建（实体，savory-pojo）：**
-- `savory-pojo/.../pojo/entity/PayChannel.java` — 支付渠道配置
-- `savory-pojo/.../pojo/entity/PayOrder.java` — 支付单（幂等 CAS 载体）
-- `savory-pojo/.../pojo/entity/PayNotifyLog.java` — 回调留痕
-- `savory-pojo/.../pojo/entity/PayAccount.java` — 余额账户
-- `savory-pojo/.../pojo/entity/PayAccountTransaction.java` — 余额流水
+**新建（实体，jiwei-pojo）：**
+- `jiwei-pojo/.../pojo/entity/PayChannel.java` — 支付渠道配置
+- `jiwei-pojo/.../pojo/entity/PayOrder.java` — 支付单（幂等 CAS 载体）
+- `jiwei-pojo/.../pojo/entity/PayNotifyLog.java` — 回调留痕
+- `jiwei-pojo/.../pojo/entity/PayAccount.java` — 余额账户
+- `jiwei-pojo/.../pojo/entity/PayAccountTransaction.java` — 余额流水
 
-**新建（支付中台，savory-modules/trade）：**
-- `com/savory/trade/pay/core/IPayChannelHandler.java` — 渠道策略接口
-- `com/savory/trade/pay/core/PayChannelFactory.java` — 渠道工厂（构造器自动注册）
-- `com/savory/trade/pay/core/model/PayResult.java`、`PayNotifyResult.java`、`RefundResult.java` — 统一返回模型
-- `com/savory/trade/pay/channel/BalancePayChannelHandler.java`、`MockChannelHandler.java`、`WechatChannelHandler.java` — 3 个渠道实现
-- `com/savory/trade/pay/mapper/PayOrderMapper.java`、`PayAccountMapper.java`、`PayAccountTransactionMapper.java`、`PayNotifyLogMapper.java`、`PayChannelMapper.java`
-- `com/savory/trade/pay/service/PayOrderService.java` + `impl`、`PayAccountService.java` + `impl`
-- `com/savory/trade/pay/controller/PayChannelNotifyController.java` — 渠道回调入口（`/api/notify/pay/{channelCode}`）
+**新建（支付中台，jiwei-modules/trade）：**
+- `com/jiwei/trade/pay/core/IPayChannelHandler.java` — 渠道策略接口
+- `com/jiwei/trade/pay/core/PayChannelFactory.java` — 渠道工厂（构造器自动注册）
+- `com/jiwei/trade/pay/core/model/PayResult.java`、`PayNotifyResult.java`、`RefundResult.java` — 统一返回模型
+- `com/jiwei/trade/pay/channel/BalancePayChannelHandler.java`、`MockChannelHandler.java`、`WechatChannelHandler.java` — 3 个渠道实现
+- `com/jiwei/trade/pay/mapper/PayOrderMapper.java`、`PayAccountMapper.java`、`PayAccountTransactionMapper.java`、`PayNotifyLogMapper.java`、`PayChannelMapper.java`
+- `com/jiwei/trade/pay/service/PayOrderService.java` + `impl`、`PayAccountService.java` + `impl`
+- `com/jiwei/trade/pay/controller/PayChannelNotifyController.java` — 渠道回调入口（`/api/notify/pay/{channelCode}`）
 
 **新建（多实例 WebSocket）：**
-- `com/savory/trade/websocket/RedisSessionRegistry.java`
-- `com/savory/trade/websocket/NotifyWebSocketHandler.java`
-- `com/savory/trade/websocket/WebSocketConfig.java`（注册 handler，替换 `@ServerEndpoint`）
-- `com/savory/trade/websocket/NotifyMessage.java`
-- `com/savory/trade/mq/NotifyMessageProducer.java`、`NotifyMessageConsumer.java`（RocketMQ 广播）
+- `com/jiwei/trade/websocket/RedisSessionRegistry.java`
+- `com/jiwei/trade/websocket/NotifyWebSocketHandler.java`
+- `com/jiwei/trade/websocket/WebSocketConfig.java`（注册 handler，替换 `@ServerEndpoint`）
+- `com/jiwei/trade/websocket/NotifyMessage.java`
+- `com/jiwei/trade/mq/NotifyMessageProducer.java`、`NotifyMessageConsumer.java`（RocketMQ 广播）
 
 **修改：**
-- `savory-life/db/04_trade.sql` — 加 5 张支付表
-- `savory-modules/.../trade/service/impl/OrderServiceImpl.java` — `pay()`/`refund()` 接入渠道
-- `savory-modules/.../trade/controller/PayNotifyController.java` — 委托 `PayOrderService`，或由新 `PayChannelNotifyController` 替代
-- `savory-modules/.../trade/websocket/WebSocketServer.java` — 删除静态管理（被 `NotifyWebSocketHandler` 替换）
-- `savory-framework/src/main/java/com/savory/framework/config/WebSocketConfiguration.java` — 删除 `ServerEndpointExporter` bean
+- `jiwei-life/db/04_trade.sql` — 加 5 张支付表
+- `jiwei-modules/.../trade/service/impl/OrderServiceImpl.java` — `pay()`/`refund()` 接入渠道
+- `jiwei-modules/.../trade/controller/PayNotifyController.java` — 委托 `PayOrderService`，或由新 `PayChannelNotifyController` 替代
+- `jiwei-modules/.../trade/websocket/WebSocketServer.java` — 删除静态管理（被 `NotifyWebSocketHandler` 替换）
+- `jiwei-framework/src/main/java/com/jiwei/framework/config/WebSocketConfiguration.java` — 删除 `ServerEndpointExporter` bean
 
 **测试：**
-- `savory-modules/src/test/java/com/savory/trade/pay/PayAccountServiceTest.java` — 余额扣减幂等/超扣测试
+- `jiwei-modules/src/test/java/com/jiwei/trade/pay/PayAccountServiceTest.java` — 余额扣减幂等/超扣测试
 
 ---
 
 ## Task 1: 支付域实体 + 表结构（幂等三重防线落 SQL）
 
 **Files:**
-- Modify: `savory-life/db/04_trade.sql`
+- Modify: `jiwei-life/db/04_trade.sql`
 - Create: 5 个实体（`PayChannel`/`PayOrder`/`PayNotifyLog`/`PayAccount`/`PayAccountTransaction`）
 
 **Interfaces:**
@@ -77,7 +77,7 @@
 
 - [ ] **Step 1: 04_trade.sql 追加 5 张支付表**
 
-在 `04_trade.sql` 末尾追加（借鉴 `ruoyi-pay/sql/pay.sql` + `pay_balance.sql`，字段精简为 savorylife 所需）：
+在 `04_trade.sql` 末尾追加（借鉴 `ruoyi-pay/sql/pay.sql` + `pay_balance.sql`，字段精简为 JiweiLife 所需）：
 
 ```sql
 -- ============ 支付中台 ============
@@ -154,7 +154,7 @@ CREATE TABLE pay_account_transaction (
 
 - [ ] **Step 2: 创建 5 个实体**
 
-按 savorylife 现有实体风格（`@Data @Builder @NoArgsConstructor @AllArgsConstructor @TableName`），创建到 `savory-pojo/.../pojo/entity/`。字段与 Step 1 表结构一一对应，`@TableId(type = IdType.AUTO)`，`createTime`/`updateTime` 用 `@TableField(fill = FieldFill.INSERT / INSERT_UPDATE)`。
+按 JiweiLife 现有实体风格（`@Data @Builder @NoArgsConstructor @AllArgsConstructor @TableName`），创建到 `jiwei-pojo/.../pojo/entity/`。字段与 Step 1 表结构一一对应，`@TableId(type = IdType.AUTO)`，`createTime`/`updateTime` 用 `@TableField(fill = FieldFill.INSERT / INSERT_UPDATE)`。
 
 注意：`PayOrder` 实体需含 `private Long userId;`（对应 `pay_order.user_id` 列，余额渠道下单时 `BalancePayChannelHandler` 依赖它扣款，见 Task 2）。
 
@@ -174,13 +174,13 @@ public static final int TRANS_TYPE_ADJUST = 3;  // 后台调整
 
 - [ ] **Step 3: 编译验证**
 
-Run: `cd savory-life && mvn compile -pl savory-pojo -DskipTests`
+Run: `cd jiwei-life && mvn compile -pl jiwei-pojo -DskipTests`
 Expected: BUILD SUCCESS
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add savory-life/db/04_trade.sql savory-pojo/src/main/java/com/savory/pojo/entity/Pay*.java
+git add jiwei-life/db/04_trade.sql jiwei-pojo/src/main/java/com/jiwei/pojo/entity/Pay*.java
 git commit -m "feat(trade): 新增支付中台 5 张表与实体（幂等三重防线落库）"
 ```
 
@@ -189,10 +189,10 @@ git commit -m "feat(trade): 新增支付中台 5 张表与实体（幂等三重�
 ## Task 2: 支付渠道抽象（策略 + 工厂）
 
 **Files:**
-- Create: `com/savory/trade/pay/core/IPayChannelHandler.java`
-- Create: `com/savory/trade/pay/core/PayChannelFactory.java`
-- Create: `com/savory/trade/pay/core/model/PayResult.java`、`PayNotifyResult.java`、`RefundResult.java`
-- Create: `com/savory/trade/pay/channel/BalancePayChannelHandler.java`、`MockChannelHandler.java`、`WechatChannelHandler.java`
+- Create: `com/jiwei/trade/pay/core/IPayChannelHandler.java`
+- Create: `com/jiwei/trade/pay/core/PayChannelFactory.java`
+- Create: `com/jiwei/trade/pay/core/model/PayResult.java`、`PayNotifyResult.java`、`RefundResult.java`
+- Create: `com/jiwei/trade/pay/channel/BalancePayChannelHandler.java`、`MockChannelHandler.java`、`WechatChannelHandler.java`
 
 **Interfaces:**
 - Consumes: `PayOrder`/`PayChannel` 实体（Task 1）
@@ -202,16 +202,16 @@ git commit -m "feat(trade): 新增支付中台 5 张表与实体（幂等三重�
 
 - [ ] **Step 1: 创建 IPayChannelHandler（策略接口）**
 
-从源 `D:\qiuzhao\payment-processing-platform\ruoyi-pay\src\main\java\com\ruoyi\pay\core\IPayChannelHandler.java` 移植，包名改 `com.savory.trade.pay.core`，去掉 `isRawBodyNotify`/`parseRawNotify`（savorylife 只有微信 V3 JSON 回调，直接用现有 `WeChatPayUtil` 解析，无需 XML 报文通道）：
+从源 `D:\qiuzhao\payment-processing-platform\ruoyi-pay\src\main\java\com\ruoyi\pay\core\IPayChannelHandler.java` 移植，包名改 `com.jiwei.trade.pay.core`，去掉 `isRawBodyNotify`/`parseRawNotify`（JiweiLife 只有微信 V3 JSON 回调，直接用现有 `WeChatPayUtil` 解析，无需 XML 报文通道）：
 
 ```java
-package com.savory.trade.pay.core;
+package com.jiwei.trade.pay.core;
 
-import com.savory.pojo.entity.PayChannel;
-import com.savory.pojo.entity.PayOrder;
-import com.savory.trade.pay.core.model.PayNotifyResult;
-import com.savory.trade.pay.core.model.PayResult;
-import com.savory.trade.pay.core.model.RefundResult;
+import com.jiwei.pojo.entity.PayChannel;
+import com.jiwei.pojo.entity.PayOrder;
+import com.jiwei.trade.pay.core.model.PayNotifyResult;
+import com.jiwei.trade.pay.core.model.PayResult;
+import com.jiwei.trade.pay.core.model.RefundResult;
 
 import java.util.Map;
 
@@ -230,12 +230,12 @@ public interface IPayChannelHandler {
 
 - [ ] **Step 2: 创建 PayChannelFactory（构造器自动注册）**
 
-从源 `PayChannelFactory.java` 移植，包名/异常改 savorylife 风格（`OrderBusinessException` 替代 ruoyi `ServiceException`）：
+从源 `PayChannelFactory.java` 移植，包名/异常改 JiweiLife 风格（`OrderBusinessException` 替代 ruoyi `ServiceException`）：
 
 ```java
-package com.savory.trade.pay.core;
+package com.jiwei.trade.pay.core;
 
-import com.savory.common.exception.OrderBusinessException;
+import com.jiwei.common.exception.OrderBusinessException;
 import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Map;
@@ -366,7 +366,7 @@ public class WechatChannelHandler implements IPayChannelHandler {
 
 - [ ] **Step 5: 编译验证（PayAccountService 先建空接口占位）**
 
-先建 `com/savory/trade/pay/service/PayAccountService.java` 空接口让编译通过（Task 3 补实现）：
+先建 `com/jiwei/trade/pay/service/PayAccountService.java` 空接口让编译通过（Task 3 补实现）：
 
 ```java
 public interface PayAccountService {
@@ -375,13 +375,13 @@ public interface PayAccountService {
 }
 ```
 
-Run: `cd savory-life && mvn compile -pl savory-pojo,savory-common,savory-framework,savory-modules -DskipTests`
+Run: `cd jiwei-life && mvn compile -pl jiwei-pojo,jiwei-common,jiwei-framework,jiwei-modules -DskipTests`
 Expected: BUILD SUCCESS
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add savory-modules/src/main/java/com/savory/trade/pay/
+git add jiwei-modules/src/main/java/com/jiwei/trade/pay/
 git commit -m "feat(trade): 引入支付渠道策略+工厂（balance/mock/wechat 骨架）"
 ```
 
@@ -390,9 +390,9 @@ git commit -m "feat(trade): 引入支付渠道策略+工厂（balance/mock/wecha
 ## Task 3: 支付编排 + 余额账户服务（幂等入账 + 条件扣减）
 
 **Files:**
-- Create: `com/savory/trade/pay/mapper/PayOrderMapper.java`、`PayAccountMapper.java`、`PayAccountTransactionMapper.java`、`PayNotifyLogMapper.java`、`PayChannelMapper.java`
-- Create: `com/savory/trade/pay/service/impl/PayOrderServiceImpl.java`
-- Create: `com/savory/trade/pay/service/impl/PayAccountServiceImpl.java`
+- Create: `com/jiwei/trade/pay/mapper/PayOrderMapper.java`、`PayAccountMapper.java`、`PayAccountTransactionMapper.java`、`PayNotifyLogMapper.java`、`PayChannelMapper.java`
+- Create: `com/jiwei/trade/pay/service/impl/PayOrderServiceImpl.java`
+- Create: `com/jiwei/trade/pay/service/impl/PayAccountServiceImpl.java`
 
 **Interfaces:**
 - Consumes: `PayChannelFactory`（Task 2）、5 个实体（Task 1）
@@ -405,10 +405,10 @@ git commit -m "feat(trade): 引入支付渠道策略+工厂（balance/mock/wecha
 其余 4 个用 `BaseMapper<T>` 即可；`PayOrderMapper` 和 `PayAccountMapper` 额外加自定义幂等 SQL（用 `@Update` 注解，等价轮子 XML 的 `updateOrderPaid`/`deductBalance`）：
 
 ```java
-package com.savory.trade.pay.mapper;
+package com.jiwei.trade.pay.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.savory.pojo.entity.PayOrder;
+import com.jiwei.pojo.entity.PayOrder;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
@@ -436,10 +436,10 @@ public interface PayOrderMapper extends BaseMapper<PayOrder> {
 ```
 
 ```java
-package com.savory.trade.pay.mapper;
+package com.jiwei.trade.pay.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.savory.pojo.entity.PayAccount;
+import com.jiwei.pojo.entity.PayAccount;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
@@ -479,15 +479,15 @@ public interface PayAccountTransactionMapper extends BaseMapper<PayAccountTransa
 从源 `PayAccountServiceImpl.java` 移植核心方法，`@DS("trade")`，异常改 `OrderBusinessException`，单号改雪花：
 
 ```java
-package com.savory.trade.pay.service.impl;
+package com.jiwei.trade.pay.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
-import com.savory.common.exception.OrderBusinessException;
-import com.savory.pojo.entity.PayAccount;
-import com.savory.pojo.entity.PayAccountTransaction;
-import com.savory.trade.pay.mapper.PayAccountMapper;
-import com.savory.trade.pay.mapper.PayAccountTransactionMapper;
-import com.savory.trade.pay.service.PayAccountService;
+import com.jiwei.common.exception.OrderBusinessException;
+import com.jiwei.pojo.entity.PayAccount;
+import com.jiwei.pojo.entity.PayAccountTransaction;
+import com.jiwei.trade.pay.mapper.PayAccountMapper;
+import com.jiwei.trade.pay.mapper.PayAccountTransactionMapper;
+import com.jiwei.trade.pay.service.PayAccountService;
 import cn.hutool.core.util.IdUtil;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -645,13 +645,13 @@ public class PayOrderServiceImpl implements PayOrderService {
 
 - [ ] **Step 4: 编译验证**
 
-Run: `cd savory-life && mvn compile -pl savory-pojo,savory-common,savory-framework,savory-modules -DskipTests`
+Run: `cd jiwei-life && mvn compile -pl jiwei-pojo,jiwei-common,jiwei-framework,jiwei-modules -DskipTests`
 Expected: BUILD SUCCESS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add savory-modules/src/main/java/com/savory/trade/pay/
+git add jiwei-modules/src/main/java/com/jiwei/trade/pay/
 git commit -m "feat(trade): 支付编排服务（验签+金额校验+幂等入账+留痕）与余额账户条件扣减"
 ```
 
@@ -660,9 +660,9 @@ git commit -m "feat(trade): 支付编排服务（验签+金额校验+幂等入�
 ## Task 4: 改造 OrderServiceImpl 接入支付渠道
 
 **Files:**
-- Modify: `savory-modules/.../trade/service/impl/OrderServiceImpl.java`
-- Create: `com/savory/trade/pay/controller/PayChannelNotifyController.java`（或改造现有 `PayNotifyController`）
-- Create: `com/savory/trade/mq/OrderPaidConsumer.java`（消费支付成功消息，回写业务订单）
+- Modify: `jiwei-modules/.../trade/service/impl/OrderServiceImpl.java`
+- Create: `com/jiwei/trade/pay/controller/PayChannelNotifyController.java`（或改造现有 `PayNotifyController`）
+- Create: `com/jiwei/trade/mq/OrderPaidConsumer.java`（消费支付成功消息，回写业务订单）
 
 **Interfaces:**
 - Consumes: `PayOrderService.createPayOrder(...)`（Task 3）
@@ -703,7 +703,7 @@ public void pay(Long orderId, Long userId, String channelCode) {
 
 - [ ] **Step 4: 创建 OrderPaidConsumer（消费 order-paid-topic，回写 orders.pay_status）**
 
-用 savorylife 的 `DefaultMQPushConsumer` 风格（对齐 `EmbeddingConsumer`）：
+用 JiweiLife 的 `DefaultMQPushConsumer` 风格（对齐 `EmbeddingConsumer`）：
 
 ```java
 @Component
@@ -773,10 +773,10 @@ public class PayChannelNotifyController {
 
 - [ ] **Step 7: 编译验证 + Commit**
 
-Run: `cd savory-life && mvn compile -pl savory-pojo,savory-common,savory-framework,savory-modules -DskipTests`
+Run: `cd jiwei-life && mvn compile -pl jiwei-pojo,jiwei-common,jiwei-framework,jiwei-modules -DskipTests`
 
 ```bash
-git add savory-modules/src/main/java/com/savory/trade/
+git add jiwei-modules/src/main/java/com/jiwei/trade/
 git commit -m "feat(trade): 订单支付/退款接入支付渠道，回调经幂等入账回写业务订单"
 ```
 
@@ -785,13 +785,13 @@ git commit -m "feat(trade): 订单支付/退款接入支付渠道，回调经幂
 ## Task 5: 多实例 WebSocket 推送（RocketMQ 广播 + 本机过滤 + Redis 会话）
 
 **Files:**
-- Create: `com/savory/trade/websocket/RedisSessionRegistry.java`
-- Create: `com/savory/trade/websocket/NotifyWebSocketHandler.java`
-- Create: `com/savory/trade/websocket/NotifyMessage.java`
-- Create: `com/savory/trade/websocket/WebSocketConfig.java`
-- Create: `com/savory/trade/mq/NotifyMessageProducer.java`、`NotifyMessageConsumer.java`
-- Modify: `savory-modules/.../trade/websocket/WebSocketServer.java`（删除或改造为委托）
-- Modify: `savory-framework/src/main/java/com/savory/framework/config/WebSocketConfiguration.java`（删除 `ServerEndpointExporter` bean）
+- Create: `com/jiwei/trade/websocket/RedisSessionRegistry.java`
+- Create: `com/jiwei/trade/websocket/NotifyWebSocketHandler.java`
+- Create: `com/jiwei/trade/websocket/NotifyMessage.java`
+- Create: `com/jiwei/trade/websocket/WebSocketConfig.java`
+- Create: `com/jiwei/trade/mq/NotifyMessageProducer.java`、`NotifyMessageConsumer.java`
+- Modify: `jiwei-modules/.../trade/websocket/WebSocketServer.java`（删除或改造为委托）
+- Modify: `jiwei-framework/src/main/java/com/jiwei/framework/config/WebSocketConfiguration.java`（删除 `ServerEndpointExporter` bean）
 
 **Interfaces:**
 - Consumes: `DefaultMQProducer`（框架 bean）、`StringRedisTemplate`
@@ -815,7 +815,7 @@ public class NotifyMessage {
 
 - [ ] **Step 2: 创建 RedisSessionRegistry**
 
-从源 `RedisSessionRegistry.java` 移植（Redis Set 记录在线用户/会话归属），包名改 `com.savory.trade.websocket`，key 前缀改 savorylife 风格：
+从源 `RedisSessionRegistry.java` 移植（Redis Set 记录在线用户/会话归属），包名改 `com.jiwei.trade.websocket`，key 前缀改 JiweiLife 风格：
 
 ```java
 @Component
@@ -852,7 +852,7 @@ public class RedisSessionRegistry {
 
 - [ ] **Step 3: 创建 NotifyWebSocketHandler（本机过滤）**
 
-从源 `NotifyWebSocketHandler.java` 移植，包名/序列化改 fastjson2，去掉 `InstanceIdProvider`（savorylife 单实例部署为主，广播消息天然覆盖）：
+从源 `NotifyWebSocketHandler.java` 移植，包名/序列化改 fastjson2，去掉 `InstanceIdProvider`（JiweiLife 单实例部署为主，广播消息天然覆盖）：
 
 ```java
 @Component
@@ -932,7 +932,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
 同时删除 `WebSocketServer.java`（`@ServerEndpoint` + 静态 `sessionMap`）或将其改造为委托 `NotifyWebSocketHandler`。注意删除后需处理 `OrderServiceImpl.confirm()` 里「TODO WebSocket 推送」的调用点（改走 `NotifyMessageProducer`）。
 
-还要删除 `savory-framework` 的 `WebSocketConfiguration.java`（`ServerEndpointExporter` bean）——改用 `WebSocketConfigurer` 后 `@ServerEndpoint` 注解已不生效，`ServerEndpointExporter` 会因容器里再无 `@ServerEndpoint` 类而成为无用的空导出器，应一并移除（该文件位于 `savory-framework`，需在框架模块编译验证）。
+还要删除 `jiwei-framework` 的 `WebSocketConfiguration.java`（`ServerEndpointExporter` bean）——改用 `WebSocketConfigurer` 后 `@ServerEndpoint` 注解已不生效，`ServerEndpointExporter` 会因容器里再无 `@ServerEndpoint` 类而成为无用的空导出器，应一并移除（该文件位于 `jiwei-framework`，需在框架模块编译验证）。
 
 - [ ] **Step 5: 创建 NotifyMessageProducer + NotifyMessageConsumer（RocketMQ 广播）**
 
@@ -978,10 +978,10 @@ public class NotifyMessageConsumer {
 
 - [ ] **Step 7: 编译验证 + Commit**
 
-Run: `cd savory-life && mvn compile -pl savory-pojo,savory-common,savory-framework,savory-modules -DskipTests`
+Run: `cd jiwei-life && mvn compile -pl jiwei-pojo,jiwei-common,jiwei-framework,jiwei-modules -DskipTests`
 
 ```bash
-git add savory-modules/src/main/java/com/savory/trade/websocket/ savory-modules/src/main/java/com/savory/trade/mq/ savory-framework/src/main/java/com/savory/framework/config/WebSocketConfiguration.java
+git add jiwei-modules/src/main/java/com/jiwei/trade/websocket/ jiwei-modules/src/main/java/com/jiwei/trade/mq/ jiwei-framework/src/main/java/com/jiwei/framework/config/WebSocketConfiguration.java
 git commit -m "feat(trade): 多实例 WebSocket 定向推送（RocketMQ 广播 + 本机过滤 + Redis 会话）"
 ```
 

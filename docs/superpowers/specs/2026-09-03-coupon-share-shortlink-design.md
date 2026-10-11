@@ -50,9 +50,9 @@ A 点「复制短链」→ 调 POST /user/coupon-share/link?templateId=5 → 后
 
 ## 组件设计
 
-### 后端（savory-modules，market 域 @DS("market")）
+### 后端（jiwei-modules，market 域 @DS("market")）
 
-**新增 `com.savory.market.couponshare.CouponShareController`**（`@RequestMapping("/user/coupon-share")`）
+**新增 `com.jiwei.market.couponshare.CouponShareController`**（`@RequestMapping("/user/coupon-share")`）
 
 | 接口 | 路径 | 说明 |
 |---|---|---|
@@ -66,13 +66,13 @@ A 点「复制短链」→ 调 POST /user/coupon-share/link?templateId=5 → 后
 
 **配置**：`coupon.share.base-url=http://localhost:5173`（application.yml，生产覆盖）。
 
-### admin 前端（savory-admin）
+### admin 前端（jiwei-admin）
 
 - **路由** `src/router/index.ts` 加：`{ path: '/coupon-share', name: 'CouponShare', component: ..., meta: { title:'领券', requiresAuth: false } }`（独立于 MainLayout，仿 login 公开路由）
 - **页面** `src/views/coupon/CouponShare.vue`：`onLoad/route` 读 `templateId` → 调 `GET /user/coupon-share/info`（axios 直发 `/user/...`，走 admin `/user` 代理不 rewrite）→ 展示券卡片 → 展示小程序码占位图 → 提示「微信扫码/识别打开小程序领取」
 - api 封装：`src/api/index.ts` 加 `getCouponShareInfo(templateId)` 等
 
-### 小程序（savory-miniapp）
+### 小程序（jiwei-miniapp）
 
 - **coupon.vue**：`onLoad(options)` 读 `templateId` → 若存在则切到「领券中心」tab 并高亮滚动到该券；每张券卡片加「分享」入口
 - **分享动作**：点分享 → 调 `POST /user/coupon-share/link` 生成短链 → 弹窗展示 shortUrl 供复制；同时页面 `onShareAppMessage` 返回 `{ path: '/pages/coupon/coupon?templateId=' + currentId, title: '送你一张券' }`
