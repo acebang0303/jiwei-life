@@ -14,6 +14,9 @@
 
 ![image-20260905104110860](./README.assets/image-20260905104110860.png)
 
+<img width="492" height="1057" alt="image" src="https://github.com/user-attachments/assets/c59a6578-28ab-4547-8efc-3b76e7974be6" />
+
+
 ## 来源与边界声明
 
 本仓库是**个人学习型整合项目**，请理性看待其工程边界：
