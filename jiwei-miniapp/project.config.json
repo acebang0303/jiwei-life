@@ -1,7 +1,7 @@
 {
   "miniprogramRoot": "dist/dev/mp-weixin/",
   "projectname": "jiwei-miniapp",
-  "description": "吉味生活 - 探索城市美食",
+  "description": "吉味生活 - 吉林本地生活服务平台",
   "appid": "wx25dd0fcfcb800b12",
   "setting": {
     "urlCheck": false,

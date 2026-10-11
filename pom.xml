@@ -10,7 +10,7 @@
     <packaging>pom</packaging>
 
     <name>JiweiLife</name>
-    <description>吉味生活 — 融合AI Agent的本地生活服务平台</description>
+    <description>吉味生活 — 吉林本地生活服务平台（O2O + 内容社区 + AI Agent）</description>
 
     <modules>
         <module>jiwei-common</module>

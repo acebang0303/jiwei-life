@@ -11,7 +11,7 @@ services:
       # 此前容器默认 UTC，导致 SQL 脚本/mysql 客户端 NOW() 写入 UTC 字面，与应用写入差 8 小时。
       TZ: Asia/Shanghai
     volumes:
-      # external: 引用既有数据卷（历史卷名 savorylife_savory_mysql_data，故意保留不改名，避免丢数据）
+      # 数据卷统一 external 固定物理名 jiwei_*，避免 compose 因目录/项目名变化而新建空卷丢数据
       - jiwei_mysql_data:/var/lib/mysql
     command:
       - --character-set-server=utf8mb4
@@ -59,6 +59,11 @@ services:
   rocketmq-namesrv:
     image: apache/rocketmq:5.3.0
     container_name: jiwei-rmq-namesrv
+    # 显式 hostname + hosts 映射：容器默认 hostname（容器 ID）不可解析时，
+    # RocketMQ MixAll.localhost() 回退会无限递归导致 StackOverflow
+    hostname: rocketmq-namesrv
+    extra_hosts:
+      - "rocketmq-namesrv:127.0.0.1"
     ports:
       - "9876:9876"
     environment:
@@ -70,6 +75,9 @@ services:
   rocketmq-broker:
     image: apache/rocketmq:5.3.0
     container_name: jiwei-rmq-broker
+    hostname: rocketmq-broker
+    extra_hosts:
+      - "rocketmq-broker:127.0.0.1"
     depends_on:
       - rocketmq-namesrv
     ports:
@@ -84,11 +92,17 @@ services:
     restart: unless-stopped
 
 volumes:
-  # external: MySQL 数据卷名是早期项目名 savorylife_savory_mysql_data（无连字符），
-  # 手动 docker run 重建也用它；compose 显式 external 引用，避免 recreate 时误建空卷
+  # 四个数据卷均 external 固定物理名 jiwei_*，与容器名一致，符合命名规范；
+  # 显式引用避免 compose 因目录名/项目名变化而新建空卷导致数据失联。
   jiwei_mysql_data:
     external: true
-    name: savorylife_savory_mysql_data
+    name: jiwei_mysql_data
   jiwei_redis_data:
+    external: true
+    name: jiwei_redis_data
   jiwei_mongo_data:
+    external: true
+    name: jiwei_mongo_data
   jiwei_pg_data:
+    external: true
+    name: jiwei_pg_data

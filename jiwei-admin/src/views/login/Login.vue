@@ -9,7 +9,7 @@
           <span class="hero-name">吉味生活</span>
         </div>
         <h1 class="hero-title">记录生活的味道</h1>
-        <p class="hero-sub">JiweiLife · 本地生活 + 内容社区 + AI 助手 统一管理后台</p>
+        <p class="hero-sub">JiweiLife · 吉林本地生活服务平台 · 内容社区 + AI 助手 统一管理后台</p>
         <ul class="hero-points">
           <li><span class="dot"></span>笔记 · 评价 · 关注，经营内容社区</li>
           <li><span class="dot"></span>订单 · 商户 · 营销，一站式管理</li>

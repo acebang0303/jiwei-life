@@ -9,7 +9,7 @@
           <span class="hero-name">吉味生活</span>
         </div>
         <h1 class="hero-title">掌控火候，经营有道</h1>
-        <p class="hero-sub">JiweiLife · 商家经营中心</p>
+        <p class="hero-sub">JiweiLife · 吉林本地生活服务平台 · 商家经营中心</p>
         <ul class="hero-points">
           <li><span class="flame-dot"></span>订单 · 菜品 · 门店，一站式经营</li>
           <li><span class="flame-dot"></span>数据洞察，掌握每一道菜的火候</li>

@@ -1,7 +1,7 @@
 {
   "name": "jiwei-miniapp",
   "version": "1.0.0",
-  "description": "吉味生活 · JiweiLife 用户端微信小程序",
+  "description": "吉味生活 · JiweiLife 吉林本地生活服务平台 · 用户端微信小程序",
   "scripts": {
     "dev:mp-weixin": "uni -p mp-weixin",
     "build:mp-weixin": "uni build -p mp-weixin"
