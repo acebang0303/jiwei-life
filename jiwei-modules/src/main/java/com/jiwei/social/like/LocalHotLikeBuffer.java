@@ -16,6 +16,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * 热点笔记的本地大对象缓存。
  * 识别为热点的笔记，点赞操作不再直连 Redis，而是先打到 JVM 内存聚合，
  * 每隔 flushIntervalMs（默认 1.5s）通过一条 pipeline 批量刷回 Redis。
+ *
+ * 内存治理：buffers/hotNotes 都会随笔记数量增长，若只增不减，跑久了就是内存泄漏。
+ * 因此退出热点模式时（markCold）先刷残余增量再摘除缓冲，flush 时也会回收
+ * 「已降温且已刷空」的缓冲。
  */
 @Component
 @Slf4j
@@ -48,8 +52,31 @@ public class LocalHotLikeBuffer {
         log.info("热点模式开启: note={}，点赞将先在本地聚合，每 {}ms 刷一次 Redis", noteId, flushIntervalMs);
     }
 
+    /** 退出热点模式：先把残余未刷写的增量原子补刷回 Redis，再摘除本地缓冲（避免长期驻留）。 */
     public void markCold(long noteId) {
         hotNotes.remove(noteId);
+        NoteBuffer buf = buffers.remove(noteId);
+        if (buf != null && !buf.pending.isEmpty()) {
+            List<Long> likeUsers = new ArrayList<>();
+            List<Long> unlikeUsers = new ArrayList<>();
+            for (Map.Entry<Long, Integer> op : buf.pending.entrySet()) {
+                if (op.getValue() == 1) {
+                    likeUsers.add(op.getKey());
+                } else {
+                    unlikeUsers.add(op.getKey());
+                }
+            }
+            // 复用批量 Lua：按实际影响算增量，即便与其它实例/直连路径重叠也不会重复计数
+            try {
+                NoteLikeStore.FlushResult r = store.flushAggregated(
+                        List.of(new NoteLikeStore.AggregatedOps(noteId, likeUsers, unlikeUsers)));
+                log.info("热点模式关闭: note={}，补刷残余 {} 条（实际增量={}），恢复直连 Redis",
+                        noteId, buf.pending.size(), r.delta());
+            } catch (RuntimeException e) {
+                log.warn("退出热点模式补刷失败 note={}: {}", noteId, e.getMessage());
+            }
+            return;
+        }
         log.info("热点模式关闭: note={}，恢复直连 Redis 写入", noteId);
     }
 
@@ -87,6 +114,10 @@ public class LocalHotLikeBuffer {
             Long noteId = entry.getKey();
             NoteBuffer buf = entry.getValue();
             if (buf.pending.isEmpty()) {
+                // 已降温且刷空的缓冲直接回收，避免 buffers 无界增长
+                if (!hotNotes.contains(noteId)) {
+                    buffers.remove(noteId, buf);
+                }
                 continue;
             }
             List<Long> likeUsers = new ArrayList<>();
@@ -106,8 +137,9 @@ public class LocalHotLikeBuffer {
         if (batch.isEmpty()) {
             return;
         }
+        NoteLikeStore.FlushResult result;
         try {
-            store.flushAggregated(batch);
+            result = store.flushAggregated(batch);
         } catch (RuntimeException e) {
             log.error("flush hot buffer to redis failed, keep pending for retry", e);
             return;
@@ -122,6 +154,10 @@ public class LocalHotLikeBuffer {
                 buf.delta.addAndGet(op.getValue() == 1 ? -1 : 1);
             }
         }
-        log.info("本地缓冲刷写: 笔记数={} 操作数={} 聚合为 1 次 pipeline 写 Redis", batch.size(), flushed.size());
+        log.info("本地缓冲刷写: 笔记数={} 意图操作数={} 实际净增量={} 实推事件={}（Lua 原子批量，多实例/重放幂等）",
+                batch.size(), flushed.size(), result.delta(), result.pushedEvents());
+
+        // 刷写后再回收一轮「降温且已空」的缓冲
+        buffers.entrySet().removeIf(e -> !hotNotes.contains(e.getKey()) && e.getValue().pending.isEmpty());
     }
 }

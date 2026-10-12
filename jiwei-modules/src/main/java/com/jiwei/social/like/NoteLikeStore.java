@@ -18,6 +18,10 @@ import java.util.Map;
  *   note:like:count         HASH   field=noteId, value=点赞数（读路径 O(1)）
  *   note:like:users:{id}    SET    已点赞用户 id 集合
  *   note:like:events        LIST   点赞事件队列（JSON），供消费端攒批持久化
+ *
+ * 写路径全部走 Lua（见 resources/lua）：
+ *   - toggle：判断「是否已赞」与写入在同一段脚本里完成，消除 read-then-write 竞态；
+ *   - flush ：按 SADD/SREM 的实际影响结果算增量，重放/多实例/跨路径都幂等。
  */
 @Component
 @Slf4j
@@ -28,76 +32,79 @@ public class NoteLikeStore {
     private static final String KEY_USERS_PREFIX = "note:like:users:";
 
     private final StringRedisTemplate redis;
+    private final NoteLikeScripts scripts;
 
-    public NoteLikeStore(StringRedisTemplate redis) {
+    public NoteLikeStore(StringRedisTemplate redis, NoteLikeScripts scripts) {
         this.redis = redis;
+        this.scripts = scripts;
     }
 
     public static String usersKey(long noteId) {
         return KEY_USERS_PREFIX + noteId;
     }
 
-    /** 普通笔记：直接写 Redis（SADD/HINCRBY + 推事件）。 */
-    public void applyDirect(long noteId, long userId, boolean like) {
-        String usersKey = usersKey(noteId);
-        String member = String.valueOf(userId);
-        String field = String.valueOf(noteId);
-        if (like) {
-            redis.opsForSet().add(usersKey, member);
-            redis.opsForHash().increment(KEY_COUNT, field, 1);
-        } else {
-            redis.opsForSet().remove(usersKey, member);
-            redis.opsForHash().increment(KEY_COUNT, field, -1);
-        }
-        pushEvent(NoteLikeEvent.of(like, noteId, userId));
-        log.debug("直连Redis完成: note={} user={} like={}", noteId, userId, like);
+    /**
+     * 原子点赞/取消（幂等切换）。
+     * 判断与写入在同一段 Lua 里完成，同一用户并发请求不会把计数多加一次。
+     */
+    public ApplyResult toggle(long noteId, long userId) {
+        String result = redis.execute(scripts.toggle(),
+                List.of(KEY_COUNT, usersKey(noteId), KEY_EVENTS),
+                String.valueOf(noteId), String.valueOf(userId), String.valueOf(System.currentTimeMillis()));
+        return parseToggle(result);
     }
 
-    /** 热点笔记：本地攒批后一次性聚合刷写（单条 pipeline 一次网络往返）。 */
-    public void flushAggregated(List<AggregatedOps> batch) {
-        if (batch.isEmpty()) {
-            return;
+    /**
+     * 热点笔记的本地攒批刷写：每篇笔记一次原子 Lua 调用。
+     * 返回「实际净增量」——已存在的赞/已取消的赞不会被重复计数。
+     */
+    public FlushResult flushAggregated(List<AggregatedOps> batch) {
+        if (batch == null || batch.isEmpty()) {
+            return new FlushResult(0, 0);
         }
-        RedisSerializer<String> ser = redis.getStringSerializer();
-        redis.executePipelined((RedisCallback<Object>) connection -> {
-            for (AggregatedOps ops : batch) {
-                byte[] usersKey = ser.serialize(usersKey(ops.noteId()));
-                byte[] field = ser.serialize(String.valueOf(ops.noteId()));
-                for (Long uid : ops.likeUsers()) {
-                    connection.setCommands().sAdd(usersKey, ser.serialize(String.valueOf(uid)));
-                }
-                for (Long uid : ops.unlikeUsers()) {
-                    connection.setCommands().sRem(usersKey, ser.serialize(String.valueOf(uid)));
-                }
-                if (ops.delta() != 0) {
-                    connection.hashCommands().hIncrBy(ser.serialize(KEY_COUNT), field, ops.delta());
-                }
-                byte[] queue = ser.serialize(KEY_EVENTS);
-                for (Long uid : ops.likeUsers()) {
-                    connection.listCommands().rPush(queue,
-                            ser.serialize(JSON.toJSONString(NoteLikeEvent.of(true, ops.noteId(), uid))));
-                }
-                for (Long uid : ops.unlikeUsers()) {
-                    connection.listCommands().rPush(queue,
-                            ser.serialize(JSON.toJSONString(NoteLikeEvent.of(false, ops.noteId(), uid))));
-                }
+        long totalDelta = 0;
+        long totalPushed = 0;
+        long ts = System.currentTimeMillis();
+        for (AggregatedOps ops : batch) {
+            List<String> args = new ArrayList<>();
+            args.add(String.valueOf(ops.noteId()));
+            args.add(String.valueOf(ops.likeUsers().size()));
+            for (Long uid : ops.likeUsers()) {
+                args.add(String.valueOf(uid));
             }
-            return null;
-        });
-        long likeOps = batch.stream().mapToLong(o -> o.likeUsers().size()).sum();
-        long unlikeOps = batch.stream().mapToLong(o -> o.unlikeUsers().size()).sum();
-        log.info("聚合刷写Redis: 笔记数={} LIKE={} UNLIKE={}（仅 1 次 pipeline 往返）",
-                batch.size(), likeOps, unlikeOps);
+            args.add(String.valueOf(ops.unlikeUsers().size()));
+            for (Long uid : ops.unlikeUsers()) {
+                args.add(String.valueOf(uid));
+            }
+            args.add(String.valueOf(ts));
+
+            String result = redis.execute(scripts.flush(),
+                    List.of(KEY_COUNT, usersKey(ops.noteId()), KEY_EVENTS),
+                    args.toArray());
+            FlushResult one = parseFlush(result);
+            totalDelta += one.delta();
+            totalPushed += one.pushedEvents();
+        }
+        return new FlushResult(totalDelta, totalPushed);
     }
 
     /** 每篇笔记一次聚合的操作集合。 */
     public record AggregatedOps(long noteId, List<Long> likeUsers, List<Long> unlikeUsers) {
-        public long delta() {
-            return likeUsers.size() - unlikeUsers.size();
+        /** 意图条数净差（仅用于日志；真正落库的增量以 Lua 的实际影响为准） */
+        public long intendedDelta() {
+            return (long) likeUsers.size() - unlikeUsers.size();
         }
     }
 
-    /** 启动预热：以 DB like_count 为权威基线覆盖 Redis 计数（setIfAbsent 不适用，残留增量会污染全量）。 */
+    /** 单次切换的结果：切换后的状态 + 切换后的权威计数。 */
+    public record ApplyResult(boolean liked, long count) {
+    }
+
+    /** 批量刷写结果：实际净增量 + 实际推入队列的事件条数。 */
+    public record FlushResult(long delta, long pushedEvents) {
+    }
+
+    /** 启动预热：以 DB like_count 为权威基线覆盖 Redis 计数（残留增量会污染全量，故用覆盖而非 setIfAbsent）。 */
     public void overwriteCount(long noteId, long count) {
         redis.opsForHash().put(KEY_COUNT, String.valueOf(noteId), String.valueOf(count));
     }
@@ -153,6 +160,7 @@ public class NoteLikeStore {
             try {
                 events.add(JSON.parseObject(item, NoteLikeEvent.class));
             } catch (Exception ignored) {
+                // 脏数据跳过，不让一条坏事件卡住整条队列
             }
         }
         return events;
@@ -163,9 +171,22 @@ public class NoteLikeStore {
         redis.opsForList().trim(KEY_EVENTS, n, -1);
     }
 
-    /** 把一条点赞事件写入队列（JSON 序列化）。 */
-    public void pushEvent(NoteLikeEvent event) {
-        redis.opsForList().rightPush(KEY_EVENTS, JSON.toJSONString(event));
+    private ApplyResult parseToggle(String raw) {
+        String[] parts = raw == null ? new String[0] : raw.split(",");
+        if (parts.length != 2) {
+            log.warn("点赞切换脚本返回异常: {}", raw);
+            return new ApplyResult(false, 0);
+        }
+        return new ApplyResult("1".equals(parts[0].trim()), parseLong(parts[1].trim()));
+    }
+
+    private FlushResult parseFlush(String raw) {
+        String[] parts = raw == null ? new String[0] : raw.split(",");
+        if (parts.length != 2) {
+            log.warn("点赞刷写脚本返回异常: {}", raw);
+            return new FlushResult(0, 0);
+        }
+        return new FlushResult(parseLong(parts[0].trim()), parseLong(parts[1].trim()));
     }
 
     private long parseLong(Object val) {
