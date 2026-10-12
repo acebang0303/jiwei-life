@@ -16,4 +16,14 @@ public class BizDbProperties {
     private String readOnlyPassword;
     /** 单语句超时（秒），交给 MySQL max_execution_time 兜底，防慢查询拖垮连接池 */
     private int maxExecutionTimeSeconds = 5;
+    /** 启动只读自检 */
+    private ReadOnlyCheck readOnlyCheck = new ReadOnlyCheck();
+
+    @Data
+    public static class ReadOnlyCheck {
+        /** 启动时是否执行只读自检（写探针必须被拒） */
+        private boolean enabled = true;
+        /** 自检确认「连接可写」时是否直接拒绝启动（true=fail-fast，false=仅打 ERROR 告警） */
+        private boolean failFast = true;
+    }
 }

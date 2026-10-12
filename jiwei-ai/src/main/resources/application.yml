@@ -57,6 +57,9 @@ biz-db:
   read-only-username: ${JIWEI_MYSQL_RO_USERNAME:}
   read-only-password: ${JIWEI_MYSQL_RO_PASSWORD:}
   max-execution-time-seconds: 5          # 单条 SQL 的服务端超时，兜住慢查询
+  read-only-check:
+    enabled: true                        # 启动时做只读自检（写探针必须被数据库拒绝）
+    fail-fast: true                      # 确认连接可写时直接拒绝启动（false=仅打 ERROR 告警）
 
 rocketmq:
   name-server: ${JIWEI_ROCKETMQ_NAME_SERVER:localhost:9876}
