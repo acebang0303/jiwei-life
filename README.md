@@ -65,18 +65,22 @@ jiwei-life/
 
 ### 营销域（market）
 - **秒杀**：**RocketMQ 事务消息**保证 Redis Lua 原子预扣（防超卖/限购）成功才投递消息——本地事务=预扣并写预扣标记，broker 回查（标记在/订单已建）兜底防消息丢失，DB 条件扣减 + 建单在消费端异步完成 → 延迟消息超时回补库存
-- 秒杀保护：Redis 三态熔断器 + Redisson 令牌桶限流 + 定时对账（Redis vs DB 收敛）
+- 秒杀保护：Redis 三态熔断器（滑动时间窗统计故障率、仅统计基础设施异常、HALF_OPEN 限并发探针）+ Redisson 令牌桶注解式限流（AOP + SpEL 动态 key；Redis 故障降级本机令牌桶并按实例数摊薄额度）+ 定时对账（Redis vs DB 收敛）
+- 短链：MurmurHash(64) + Base62 生成，布隆过滤器防穿透 + Caffeine 加速重定向；点击计数本地攒批异步落库（重定向热路径不写库），生成接口走 Redisson 全局令牌桶限流，长链仅放行 http/https
 - 优惠券 / 签到（成长值联动）
 
 ### 社交域（social）
 - 笔记 / 评价 / 关注 / 二级评论树 / 标签跳转（店铺或搜索）
-- 点赞：Redis 攒批 + 热点聚合 + 定时对账
+- 点赞：Redis Lua 原子切换（非热点路径）+ 事件队列攒批 + 热点笔记本地聚合；落库按 SQL 实际影响行数计增量，保证 at-least-once 重放幂等；以 DB 为唯一账本定时校正 Redis；消费端与对账共用 Redisson 分布式锁保证多实例安全
 
 ### 用户域（user / auth）
 - C 端微信登录（dev 用 mock-login），成长值体系（签到 +5 / 下单 +10 / 发笔记 +5）
 
 ### AI 服务（jiwei-ai）
-- JChatMind ReAct Agent Loop / NL2SQL 商家问数 / 混合推荐（行为 + 语义向量 + 热度兜底）
+- JChatMind ReAct Agent Loop：状态机流转（IDLE→THINKING→EXECUTING→FINISHED/ERROR）+ 步数上限与整体超时防死循环；关闭框架内部工具自动执行、改为手动编排每一步；决策阶段 **token 级 SSE 流式输出**（流式链路异常自动降级为阻塞调用）
+- NL2SQL 商家问数：语句白名单 + 写关键字黑名单（已修 DOTALL 绕过）+ 注入模式 + 表级白名单**四层校验**；**仅路由至只读账号执行**——连接级 `readOnly` + 关闭多语句 + 启动写探针自检（确认可写即拒绝启动）
+- RAG 检索：向量 + pg_trgm（中文无分词边界，故选 trgm 而非 tsvector）**双路召回 → RRF 融合 → 大模型重排**；Embedding 故障时自动降级为关键词召回
+- 混合推荐（行为 + 语义向量 + 热度兜底）
 
 ## 环境要求
 
@@ -142,6 +146,18 @@ bash gen_tokens.sh 500        # 生成压测 token
 bash run_load.sh <活动ID> <菜品ID> 500   # JMeter 500 并发
 ```
 基准记录见 `jiwei-modules/src/test/jmeter/BENCHMARK.md`。
+
+当前全量 **121 例**通过（jiwei-framework 2 / jiwei-modules 59 / jiwei-ai 60），编译 warning 0 条。
+
+除单测外，以下链路在真机（Docker 中间件）上验证过：
+
+- **点赞 Lua 原子性与幂等**：`redis-cli --eval` 直接跑脚本（含「完全重放 → delta=0」用例）；应用侧连点两次 `/user/note/{id}/like`，计数 +1 → −1、事件队列被消费、DB 计数回到基线
+- **熔断滑动窗口**：时钟可注入，窗口滑出行为用可控时钟做确定性单测（不依赖 sleep）
+- **只读数据源**：`SHOW GRANTS` 确认仅 SELECT；写探针在 `readOnly` 连接下被拒；故障注入（`readOnly=false`）下探针成功 → fail-fast 拒绝启动生效
+- **RAG 关键词通道**：`EXPLAIN` 确认 `ILIKE` 子串谓词走 GIN trgm 索引（`Bitmap Index Scan`）
+
+> 设计文档（`docs/superpowers/`）是 2026-08 ~ 09 的历史记录，保留当时的决策过程；
+> 「设计说法 vs 当前实现」的分叉点集中列在 [`docs/实现现状对照.md`](docs/实现现状对照.md)，有冲突以该文档 + 代码为准。
 
 ## 关键设计
 

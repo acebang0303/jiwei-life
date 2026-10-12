@@ -1,5 +1,12 @@
 # AI 服务重写（jiwei-ai）实现计划
 
+> ⚠️ **实现现状对照（2026-10-12）**：本文 Task 6 的 `SqlValidator` **黑名单正则缺少 DOTALL**，
+> 实测带换行的 SQL（`SELECT 1\nDELETE FROM ...`）会让整条黑名单**静默失效**（现已加 `(?s)`，
+> 并补语句白名单与表名提取收口）；只读数据源从「建只读连接」升级为
+> 「只读账号 + 连接级 readOnly + 关闭多语句 + **启动写探针自检**（确认可写即拒绝启动）」；
+> RAG 当时只有单路向量，现已补齐关键词召回 + RRF 融合 + 大模型重排 + Embedding 故障降级。
+> 见 [`docs/实现现状对照.md`](../实现现状对照.md) §5–§7。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 用 JChatMind 的手写 Agent Loop 运行时（状态机 + ToolCallingManager + 多模型注册表）替换 jiwei-ai 现有的「ChatClient 托管 ReAct」，并把探店/商家问数/审核三个业务 Agent 重写为该运行时之上的工具实例。

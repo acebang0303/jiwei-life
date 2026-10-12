@@ -1,5 +1,12 @@
 # 社交域（social）实现计划：点赞攒批 + 热点聚合 + 幂等 upsert + 对账
 
+> ⚠️ **实现现状对照（2026-10-12）**：本文是当时的实施记录，**对账方向已反转**——本文写的是
+> 「以 Redis 为权威覆盖 DB」，当前实现是**以 DB 为唯一账本校正 Redis**（写路径先加 Redis、后异步落库，
+> 用 Redis 覆盖 DB 会在在途窗口把计数永久推高）。另：点赞切换已改 Redis Lua 原子；
+> 批量刷写按 SADD/SREM **实际结果**算增量；消费端改 Redisson 分布式锁；
+> `NoteLikeStore.applyDirect(...)` 已被 `toggle(...)` / `flushAggregated(...)` 取代。
+> 完整清单见 [`docs/实现现状对照.md`](../实现现状对照.md) §4。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 用高并发点赞系统的「Redis 挡写 → 攒批 → 热点聚合 → 幂等 upsert → 兜底对账」五层链路，替换 JiweiLife 社交域里 `NoteServiceImpl.like()` 的「裸 `selectOne` + `deleteById/insert` + `updateById`」浅实现。改造后点赞写路径不再同步打 DB，读路径用「Redis 计数 + 本地待刷增量」实时合并，最终一致由攒批落库 + 30s 兜底对账保证。
@@ -607,6 +614,8 @@ public interface NoteMapper extends BaseMapper<Note> {
     @Update("UPDATE note SET like_count = GREATEST(0, like_count + #{delta}) WHERE id = #{noteId}")
     int incrLikeCount(@Param("noteId") Long noteId, @Param("delta") Integer delta);
 
+    // ⚠️ 实现已反转（2026-10-12）：当前以 DB 为唯一账本校正 Redis，本方法的方向已被取代
+    //    见 docs/实现现状对照.md §4
     /** 对账整刷：直接覆盖为 Redis 权威计数（值不等才更新，避免无谓写） */
     @Update("UPDATE note SET like_count = GREATEST(0, #{count}) " +
             "WHERE id = #{noteId} AND like_count <> GREATEST(0, #{count})")

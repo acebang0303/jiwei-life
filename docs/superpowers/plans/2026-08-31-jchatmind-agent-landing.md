@@ -1,5 +1,11 @@
 # JChatMind Agent 落地实现计划
 
+> ⚠️ **实现现状对照（2026-10-12）**：SSE 流式已升级为 **token 级**——逐 chunk delta 直接推送，
+> 聚合器只用于产出最终响应（依据：`javap` + 诊断测试确认 `ChatClientMessageAggregator` 返回的是
+> 合并后的终值而非逐 chunk delta）；流式链路异常自动降级为阻塞调用。
+> 接口与事件抽象（`AgentEventSink` / 非流式 `POST /ai/agent/chat`）不变。
+> 见 [`docs/实现现状对照.md`](../实现现状对照.md) §8。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 让 JChatMind Agent 成为 jiwei-life 三个端的一部分 —— 管理端新增运营智能助手、商家端增强（模型切换+会话+工具展示）、用户端接入非流式 Agent，并支持多轮会话续接。

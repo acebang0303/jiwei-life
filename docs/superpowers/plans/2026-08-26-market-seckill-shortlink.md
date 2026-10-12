@@ -1,5 +1,12 @@
 # 营销域（market）实现计划：秒杀完整链路（熔断/对账/失败分类/限流）+ 短链辅助
 
+> ⚠️ **实现现状对照（2026-10-12）**：本文是当时的实施记录。已分叉的点：
+> ①熔断统计从「固定窗口简化版」改为**真滑动窗口**（`windowMillis` / `bucketCount` / `minimumCalls`，
+> `windowSize` 字段已不存在）；②注解限流字段 `permitsPerSecond` 改名 `permits` 并明确为固定窗口，
+> 新增 `degrade-instances` 做多实例额度摊薄；③短链生成接口限流由 Caffeine 本地窗口改为
+> **Redisson 全局令牌桶**；④点击计数改为**本地攒批异步落库**（重定向热路径不写库）。
+> 完整清单见 [`docs/实现现状对照.md`](../实现现状对照.md) §1–§3。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把秒杀系统的完整链路（自研熔断器 → 失败分类消费者 → 三道对账 → 限流降级 → 库存预热 → 乐观锁防超卖）注入 JiweiLife 现有的「只有 Lua 预扣」的秒杀骨架；同时把短链项目（MurmurHash+Base62+布隆防穿透+Caffeine 三级链路）作为营销辅助能力纳入 market。
@@ -91,6 +98,8 @@ public class SeckillProperties {
     private Breaker breaker = new Breaker();
     private Reconcile reconcile = new Reconcile();
 
+    // ⚠️ 配置已变更（2026-10-12）：windowSize 不存在了，改为 windowMillis / bucketCount / minimumCalls；
+    //    熔断统计也已从固定窗口改为真滑动窗口，见 docs/实现现状对照.md §1
     @Data
     public static class Breaker {
         private int windowSize = 100;            // 滑动窗口大小

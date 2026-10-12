@@ -1,5 +1,10 @@
 # 上线前加固实现计划（四阶段）
 
+> ⚠️ **实现现状对照（2026-10-12）**：本文写作时全项目仅 8 个单测；当前为 **121 例**
+> （jiwei-framework 2 / jiwei-modules 59 / jiwei-ai 60），编译 warning 0 条。
+> 除单测外还补了真机验证：点赞 Lua 原子性与幂等（含完全重放 delta=0）、只读写探针（含故障注入）、
+> trgm 索引命中（EXPLAIN）。见 [`docs/实现现状对照.md`](../实现现状对照.md) §9。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 上线前完成四项后端加固——清洗 995 条脏订单、补核心链路自动化测试、建立 JMeter 压测基准、把秒杀「Redis 预扣+发消息」升级为 RocketMQ 事务消息保证原子性。
