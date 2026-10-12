@@ -22,6 +22,8 @@ public class MessageConstant {
     public static final String SECKILL_REPEAT = "请勿重复秒杀";
     public static final String SECKILL_NOT_STARTED = "秒杀活动未开始";
     public static final String SECKILL_ENDED = "秒杀活动已结束";
+    public static final String SECKILL_BUSY = "秒杀系统繁忙，请稍后重试";
+    public static final String SECKILL_LIMIT_UNSUPPORTED = "当前限购仅支持每人 1 件";
     public static final String CONTENT_AUDIT_FAILED = "内容审核未通过";
     public static final String PERMISSION_DENIED = "权限不足";
 }

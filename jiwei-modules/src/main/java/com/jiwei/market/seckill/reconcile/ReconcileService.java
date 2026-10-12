@@ -5,7 +5,10 @@ import com.jiwei.market.mapper.SeckillActivityMapper;
 import com.jiwei.market.seckill.cache.RedisExecutor;
 import com.jiwei.market.seckill.config.SeckillProperties;
 import com.jiwei.market.service.SeckillService;
+import com.jiwei.pojo.entity.Orders;
 import com.jiwei.pojo.entity.SeckillActivity;
+import com.jiwei.trade.mapper.OrderMapper;
+import com.jiwei.trade.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -31,6 +34,13 @@ public class ReconcileService {
     private final RedisExecutor redisExecutor;
     private final SeckillService seckillService;
     private final SeckillProperties properties;
+    private final OrderMapper orderMapper;
+    private final OrderService orderService;
+
+    /** 滞留判定窗口：与 OrderTask 超时取消（15 分钟）同口径 */
+    private static final int STALE_ORDER_MINUTES = 15;
+    /** 单轮最多处理的滞留订单数，防止堆积时一轮跑太久 */
+    private static final int STALE_ORDER_BATCH_LIMIT = 200;
 
     private final AtomicReference<Map<String, Object>> latestReport = new AtomicReference<>(Map.of());
 
@@ -97,10 +107,34 @@ public class ReconcileService {
         }
     }
 
-    /** 第二道：滞留待支付秒杀订单兜底关单（延迟消息丢失/消费失败的兜底） */
+    /**
+     * 第二道：滞留待支付秒杀订单兜底关单（延迟消息丢失/消费失败的兜底）。
+     *
+     * 扫描 is_seckill=1 且 待支付 且创建超过支付超时窗口的订单，
+     * 复用 trade 域 OrderService.handleTimeoutOrder：
+     * CAS 条件更新关单（与支付入账并发安全）+ 秒杀库存回补（DB+Redis+限购）+ 优惠券释放。
+     * 与 OrderTask 每分钟扫描的关系：两者幂等共存，对账每 60s 兜底延迟消息丢失的场景。
+     */
     private void staleOrderReconcile(List<String> details) {
-        // 扫描 is_seckill=1 且 待支付 且 超过支付截止时间的 orders，
-        // 复用状态机 CAS 关单 + 回补库存（seckillService 提供，后续按需接入）
-        // TODO: 需要跨库扫描 trade.orders，当前由 OrderTask 的延迟取消覆盖，暂不重复实现
+        LocalDateTime deadline = LocalDateTime.now().minusMinutes(STALE_ORDER_MINUTES);
+        List<Orders> staleOrders = orderMapper.selectList(new LambdaQueryWrapper<Orders>()
+                .eq(Orders::getIsSeckill, 1)
+                .eq(Orders::getStatus, Orders.PENDING_PAYMENT)
+                .lt(Orders::getCreateTime, deadline)
+                .last("LIMIT " + STALE_ORDER_BATCH_LIMIT));
+        if (staleOrders.isEmpty()) {
+            return;
+        }
+        for (Orders order : staleOrders) {
+            try {
+                // 幂等：内部 CAS 仅待支付→已取消，状态已变（已支付/已关）则跳过，不会重复回补
+                orderService.handleTimeoutOrder(order.getId());
+                details.add("stale-seckill-order closed: order#" + order.getId()
+                        + " (" + order.getNumber() + ")");
+            } catch (Exception e) {
+                log.error("滞留秒杀订单关单失败，下轮重试: orderId={}", order.getId(), e);
+                details.add("stale-seckill-order FAILED: order#" + order.getId());
+            }
+        }
     }
 }

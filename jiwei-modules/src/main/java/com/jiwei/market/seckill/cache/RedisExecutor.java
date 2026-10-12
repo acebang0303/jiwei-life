@@ -31,6 +31,11 @@ public class RedisExecutor {
         return breaker.execute(name, call, fallback);
     }
 
+    /** 当前 Redis 是否处于熔断/降级状态（OPEN 或 HALF_OPEN） */
+    public boolean isDegraded() {
+        return breaker.getState() != RedisCircuitBreaker.State.CLOSED;
+    }
+
     public String get(String key, Function<Throwable, String> fallback) {
         return breaker.execute("redis:get", () -> redis.opsForValue().get(key), fallback);
     }

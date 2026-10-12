@@ -26,7 +26,7 @@ class SeckillOrderCreateConsumerTest {
     }
 
     private SeckillMessage msg(String orderNo) {
-        return new SeckillMessage(orderNo, 404L, 5L, 5L, 1, new BigDecimal("9.90"));
+        return new SeckillMessage(orderNo, 404L, 5L, 5L, 1, new BigDecimal("9.90"), 1, null, null);
     }
 
     @Test
