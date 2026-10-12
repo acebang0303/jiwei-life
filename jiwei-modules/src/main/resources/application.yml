@@ -116,3 +116,25 @@ like:
     batch-size: 500            # 攒批触发阈值（条数）
     max-drain: 5000            # 单次窥探最大事件数
   reconcile-interval-ms: 30000 # 兜底对账间隔（毫秒）
+
+shortlink:
+  click:
+    flush-interval-ms: 5000    # 点击计数本地攒批落库间隔（毫秒）
+    max-codes-per-flush: 2000  # 单次落库最多合并的短码数
+  rate-limit:
+    limit-per-window: 100      # 生成接口限额（全局，Redis 令牌桶）
+    window-seconds: 60         # 限额窗口（秒）
+    trust-forwarded-for: false # 仅在可信反向代理之后再开启，否则按 remoteAddr 限流
+    degrade-instances: 1       # Redis 不可用时本机降级桶按实例数摊薄额度
+
+seckill:
+  breaker:
+    window-millis: 10000       # 滑动窗口总长度（毫秒）
+    bucket-count: 10           # 窗口分片数（越细越平滑）
+    minimum-calls: 20          # 窗口内最少样本数，低于此值不判定（低流量保护）
+    failure-rate-threshold: 50 # 故障率阈值(%)
+    open-duration-ms: 30000    # 熔断持续时长
+    half-open-permits: 5       # HALF_OPEN 连续成功多少次恢复
+    half-open-max-concurrent: 3 # HALF_OPEN 并发探针上限
+  ratelimit:
+    degrade-instances: 1       # Redis 不可用时本机令牌桶按实例数摊薄额度

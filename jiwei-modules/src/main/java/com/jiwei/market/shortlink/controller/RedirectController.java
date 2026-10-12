@@ -21,6 +21,10 @@ public class RedirectController {
     @GetMapping("/s/{code}")
     public RedirectView redirect(@PathVariable String code) {
         String target = shortLinkService.resolve(code);
-        return new RedirectView(target);
+        RedirectView view = new RedirectView(target);
+        // 不把 model/路径变量拼进目标 URL，避免 @PathVariable 泄漏到 Location 头
+        view.setExposeModelAttributes(false);
+        view.setExpandUriTemplateVariables(false);
+        return view;
     }
 }

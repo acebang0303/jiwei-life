@@ -24,7 +24,9 @@ public class SeckillBuyController {
 
     @PostMapping("/{id}/buy")
     @Operation(summary = "抢购秒杀商品")
-    @RateLimit(key = "seckill:buy", permitsPerSecond = 200, intervalSeconds = 1)
+    // 2000 QPS：热路径已 0 次 DB（元数据三级缓存 + Lua 预扣 + 事务消息异步落库），
+    // 200 QPS 会先于真实容量截断流量，压测无法探明系统水位
+    @RateLimit(key = "seckill:buy", permits = 2000, intervalSeconds = 1)
     public Result<Long> buy(@PathVariable Long id, @RequestBody SeckillBuyDTO dto) {
         dto.setActivityId(id);
         log.info("秒杀抢购: activityId={}, dishId={}", id, dto.getDishId());
