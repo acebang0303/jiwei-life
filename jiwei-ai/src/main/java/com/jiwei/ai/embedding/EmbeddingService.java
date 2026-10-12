@@ -1,5 +1,6 @@
 package com.jiwei.ai.embedding;
 
+import com.jiwei.ai.rag.RrfFusion;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
@@ -114,7 +115,7 @@ public class EmbeddingService {
     }
 
     /**
-     * 菜品语义搜索
+     * 菜品语义搜索（单通道，向量）
      */
     public List<Map<String, Object>> searchDish(String query, int topK) {
         Timer.Sample sample = Timer.start(meterRegistry);
@@ -132,6 +133,50 @@ public class EmbeddingService {
         } finally {
             sample.stop(meterRegistry.timer("jiwei.embedding.search.dish"));
         }
+    }
+
+    /**
+     * 菜品关键词召回（pg_trgm 三元组相似度）。
+     * 中文没有天然分词边界，to_tsvector('simple') 会把整句变成一个 token，
+     * trgm 在字符级做三元组更实用；同时也是 Embedding 不可用时的降级通道。
+     */
+    public List<Map<String, Object>> searchDishByKeyword(String query, int topK) {
+        String sql = """
+                SELECT id, dish_name, merchant_id, category_name, price,
+                       similarity(coalesce(dish_name, '') || ' ' || coalesce(category_name, ''), ?) AS keyword_score
+                FROM dish_embedding
+                ORDER BY keyword_score DESC
+                LIMIT ?
+                """;
+        return pgJdbcTemplate.queryForList(sql, query, topK);
+    }
+
+    /**
+     * 菜品混合召回：向量 + 关键词 → RRF 融合。
+     * Embedding 服务（外部大模型）故障时自动降级为纯关键词召回，检索能力不丢失。
+     */
+    public List<Map<String, Object>> searchDishHybrid(String query, int topK) {
+        int recallSize = Math.max(topK * 3, topK + 5);
+        List<Map<String, Object>> vectorHits = List.of();
+        try {
+            vectorHits = searchDish(query, recallSize);
+        } catch (Exception e) {
+            log.warn("菜品向量召回降级为跳过（Embedding 不可用）: {}", e.getMessage());
+        }
+        List<Map<String, Object>> keywordHits = List.of();
+        try {
+            keywordHits = searchDishByKeyword(query, recallSize);
+        } catch (Exception e) {
+            log.warn("菜品关键词召回降级为跳过（pg_trgm 不可用）: {}", e.getMessage());
+        }
+        if (vectorHits.isEmpty() && keywordHits.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> fused = RrfFusion.fuseRows(
+                List.of(vectorHits, keywordHits), List.of("vector", "keyword"), topK);
+        log.info("菜品混合召回: 向量={} 关键词={} -> 融合后={}",
+                vectorHits.size(), keywordHits.size(), fused.size());
+        return fused;
     }
 
     /**

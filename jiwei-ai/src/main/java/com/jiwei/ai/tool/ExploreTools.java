@@ -48,26 +48,18 @@ public class ExploreTools {
     public String semanticSearchRestaurant(
             @ToolParam(description = "用户对餐厅的需求描述，如'浪漫安静适合约会的西餐厅'") String query) {
         log.info("Tool调用 - 语义搜索餐厅: {}", query);
-
-        //1、尝试从 pgvector 语义搜索
         try {
-            List<Map<String, Object>> results = embeddingService.searchDish(query, 10);
+            // 混合召回：向量 + 关键词(trgm) → RRF 融合；Embedding 故障时内部自动降级为关键词召回
+            List<Map<String, Object>> results = embeddingService.searchDishHybrid(query, 10);
             if (!results.isEmpty()) {
-                return com.alibaba.fastjson2.JSON.toJSONString(results);
+                return JSON.toJSONString(results);
             }
+            return "{\"result\": [], \"hint\": \"菜品库里没有匹配结果，请如实告诉用户暂时没有合适的餐厅，不要编造\"}";
         } catch (Exception e) {
-            log.warn("pgvector搜索失败，使用Mock数据: {}", e.getMessage());
+            log.warn("菜品混合召回失败: {}", e.getMessage());
+            // 不编造数据：检索能力全挂时如实返回失败，由模型告知用户稍后重试
+            return "{\"error\": \"菜品检索服务暂时不可用，请告知用户稍后重试\"}";
         }
-
-        //2、回退：Mock 数据（开发阶段使用）
-        return """
-                [
-                    {"name": "王品牛排", "rating": 4.8, "price": 280, "reason": "高端西餐，环境优雅适合约会，招牌台塑牛排"},
-                    {"name": "海底捞火锅", "rating": 4.6, "price": 150, "reason": "服务好氛围热闹适合聚会，24小时营业"},
-                    {"name": "绿茶餐厅", "rating": 4.4, "price": 80, "reason": "性价比高江浙菜系，环境清幽"},
-                    {"name": "西贝莜面村", "rating": 4.5, "price": 120, "reason": "西北菜代表，适合家庭聚餐"},
-                    {"name": "太二酸菜鱼", "rating": 4.7, "price": 100, "reason": "网红酸菜鱼，排队王适合年轻人"}
-                ]""";
     }
 
     /**

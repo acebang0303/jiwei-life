@@ -9,6 +9,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -71,15 +72,22 @@ public class MerchantQueryTools {
         if (sql == null || sql.isEmpty()) {
             return "无法理解该问题";
         }
-        if (!sqlValidator.validate(sql, ALLOWED_TABLES)) {
+        // 校验并加固（补 LIMIT）；未通过多层校验一律不下发到数据库
+        String hardened = sqlValidator.validateAndHarden(sql, ALLOWED_TABLES);
+        if (hardened == null) {
             return "该问题涉及的数据无法查询";
         }
-        sql = ensureLimit(sql);
+        // 越权兜底：提示词已要求必须带 merchant_id 过滤，但提示词可被注入绕过，
+        // 这里在代码层再挡一次「不带商户维度的全平台查询」
+        if (!hardened.toLowerCase(Locale.ROOT).contains("merchant_id")) {
+            log.warn("经营问数被拒：SQL 缺少 merchant_id 维度过滤 - {}", hardened);
+            return "该问题涉及的数据无法查询（必须限定当前商户）";
+        }
         try {
-            List<Map<String, Object>> rows = bizJdbcTemplate.queryForList(sql);
+            List<Map<String, Object>> rows = bizJdbcTemplate.queryForList(hardened);
             return JSON.toJSONString(rows);
         } catch (Exception e) {
-            log.warn("经营助手SQL执行失败: sql={}, err={}", sql, e.getMessage());
+            log.warn("经营助手SQL执行失败: sql={}, err={}", hardened, e.getMessage());
             return "查询失败：" + e.getMessage();
         }
     }
@@ -101,6 +109,7 @@ public class MerchantQueryTools {
         }
     }
 
+    /** 从模型输出里抠出 SQL：优先取 ``` 代码块，其次从第一个 SELECT 起截断到分号。 */
     private String extractSql(String content) {
         if (content == null || content.isBlank()) {
             return null;
@@ -109,7 +118,7 @@ public class MerchantQueryTools {
         if (m.find()) {
             return m.group(1).trim();
         }
-        int idx = content.toUpperCase().indexOf("SELECT");
+        int idx = content.toUpperCase(Locale.ROOT).indexOf("SELECT");
         if (idx < 0) {
             return content.trim();
         }
@@ -119,12 +128,5 @@ public class MerchantQueryTools {
             sql = sql.substring(0, semi);
         }
         return sql.trim();
-    }
-
-    private String ensureLimit(String sql) {
-        if (!sql.toUpperCase().contains("LIMIT")) {
-            return sql + " LIMIT 100";
-        }
-        return sql;
     }
 }

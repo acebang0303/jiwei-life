@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -78,15 +79,16 @@ public class AdminTools {
         if (sql == null || sql.isEmpty()) {
             return "无法理解该问题";
         }
-        if (!sqlValidator.validate(sql, ALLOWED_TABLES)) {
+        // 校验 + 加固（补 LIMIT）：不通过就不下发数据库
+        String hardened = sqlValidator.validateAndHarden(sql, ALLOWED_TABLES);
+        if (hardened == null) {
             return "该问题涉及的数据无法查询";
         }
-        sql = ensureLimit(sql);
         try {
-            List<Map<String, Object>> rows = bizJdbcTemplate.queryForList(sql);
+            List<Map<String, Object>> rows = bizJdbcTemplate.queryForList(hardened);
             return JSON.toJSONString(rows);
         } catch (Exception e) {
-            log.warn("平台数据分析SQL执行失败: sql={}, err={}", sql, e.getMessage());
+            log.warn("平台数据分析SQL执行失败: sql={}, err={}", hardened, e.getMessage());
             return "查询失败：" + e.getMessage();
         }
     }
@@ -100,7 +102,8 @@ public class AdminTools {
 
     @Tool(description = "从运营知识库检索制度/流程/入驻规则等，返回相关文档片段；若返回知识库中未检索到相关内容，应基于自身知识回答并调用 saveKnowledgeBase 沉淀")
     public String searchKnowledgeBase(@ToolParam(description = "知识库检索问题，如'入驻流程是什么'") String query) {
-        List<Map<String, Object>> docs = ragService.semanticSearch(query, "jiwei_ops", 5);
+        // 混合召回（向量 + 关键词 → RRF），Embedding 故障时自动降级为关键词召回
+        List<Map<String, Object>> docs = ragService.hybridSearch(query, "jiwei_ops", 5);
         if (docs == null || docs.isEmpty()) {
             return "知识库中未检索到相关内容（knowledge_base=jiwei_ops）。若你能基于自身知识回答，请直接回答，然后用 saveKnowledgeBase 工具把这个问题与答案沉淀到知识库。";
         }
@@ -121,18 +124,18 @@ public class AdminTools {
 
     @Tool(description = "针对指定商户生成经营建议，输入商户ID，返回该商户经营数据分析与改进建议")
     public String merchantSuggestion(@ToolParam(description = "商户ID") Long merchantId) {
-        //1、拉取该商户近30天订单与评价聚合
-        String orderSql = "SELECT COUNT(*) AS order_cnt, IFNULL(SUM(pay_amount),0) AS revenue, " +
-                "IFNULL(AVG(pay_amount),0) AS avg_price FROM jiwei_trade.orders " +
-                "WHERE merchant_id = " + merchantId + " AND status = 5 " +
-                "AND DATE(create_time) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
-        String reviewSql = "SELECT IFNULL(AVG(r.rating),0) AS avg_rating, COUNT(*) AS review_cnt " +
-                "FROM jiwei_social.review r JOIN jiwei_trade.orders o ON r.order_id = o.id " +
-                "WHERE o.merchant_id = " + merchantId +
-                " AND DATE(r.create_time) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
+        //1、拉取该商户近30天订单与评价聚合（参数化查询，不要把入参拼进 SQL 文本）
+        String orderSql = "SELECT COUNT(*) AS order_cnt, IFNULL(SUM(pay_amount),0) AS revenue, "
+                + "IFNULL(AVG(pay_amount),0) AS avg_price FROM jiwei_trade.orders "
+                + "WHERE merchant_id = ? AND status = 5 "
+                + "AND DATE(create_time) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
+        String reviewSql = "SELECT IFNULL(AVG(r.rating),0) AS avg_rating, COUNT(*) AS review_cnt "
+                + "FROM jiwei_social.review r JOIN jiwei_trade.orders o ON r.order_id = o.id "
+                + "WHERE o.merchant_id = ? "
+                + "AND DATE(r.create_time) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
         try {
-            Map<String, Object> orders = bizJdbcTemplate.queryForList(orderSql).get(0);
-            Map<String, Object> reviews = bizJdbcTemplate.queryForList(reviewSql).get(0);
+            Map<String, Object> orders = bizJdbcTemplate.queryForList(orderSql, merchantId).get(0);
+            Map<String, Object> reviews = bizJdbcTemplate.queryForList(reviewSql, merchantId).get(0);
             String dataJson = JSON.toJSONString(Map.of("orders", orders, "reviews", reviews));
             //2、LLM 生成建议
             ChatClient client = registry.get(this.model);
@@ -173,17 +176,10 @@ public class AdminTools {
             return matcher.group(1).trim();
         }
         String trimmed = content.trim();
-        if (trimmed.toLowerCase().startsWith("select")) {
+        if (trimmed.toLowerCase(Locale.ROOT).startsWith("select")
+                || trimmed.toLowerCase(Locale.ROOT).startsWith("with")) {
             return trimmed;
         }
         return null;
-    }
-
-    private static String ensureLimit(String sql) {
-        String lower = sql.toLowerCase();
-        if (!lower.contains("limit")) {
-            return sql + " LIMIT 20";
-        }
-        return sql;
     }
 }
