@@ -18,5 +18,8 @@ SOURCE 99_seed_data.sql;
 -- 活动(banner) + 用户行为 + 补充种子数据
 SOURCE 10_activity.sql;
 
+-- AI 服务 NL2SQL 专用只读账号（仅 SELECT 权限，密码请先改掉）
+SOURCE 08_ai_readonly_user.sql;
+
 -- pgvector 请在 PostgreSQL 中单独执行:
 -- psql -U postgres -d jiwei_ai -f 07_pgvector.sql

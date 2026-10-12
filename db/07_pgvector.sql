@@ -41,3 +41,23 @@ CREATE TABLE IF NOT EXISTS knowledge_document (
 CREATE INDEX IF NOT EXISTS dish_embedding_hnsw_idx ON dish_embedding USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS note_embedding_hnsw_idx ON note_embedding USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS knowledge_document_hnsw_idx ON knowledge_document USING hnsw (embedding vector_cosine_ops);
+
+-- ==========================================
+-- pg_trgm：RAG 混合召回的「关键词通道」
+-- ==========================================
+-- 中文没有天然分词边界，to_tsvector('simple') 会把整句变成一个 token，等于失效；
+-- pg_trgm 在字符级做三元组，既支持中文，又能被 GIN 索引加速。
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- 知识库：字面召回通道走「标题/正文子串命中 + 标题 trgm 模糊」，
+-- 索引建成与查询谓词一致的列索引，pg_trgm 才能把 ILIKE 与 % 转成索引扫描
+DROP INDEX IF EXISTS knowledge_document_trgm_idx;   -- 旧版建在拼接表达式上，与查询谓词不匹配
+CREATE INDEX IF NOT EXISTS knowledge_document_title_trgm_idx
+    ON knowledge_document USING gin (title gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS knowledge_document_content_trgm_idx
+    ON knowledge_document USING gin (content gin_trgm_ops);
+-- 菜品 / 笔记：字面召回通道
+CREATE INDEX IF NOT EXISTS dish_embedding_trgm_idx
+    ON dish_embedding USING gin (dish_name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS note_embedding_trgm_idx
+    ON note_embedding USING gin (title gin_trgm_ops);
