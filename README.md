@@ -147,6 +147,10 @@ bash run_load.sh <活动ID> <菜品ID> 500   # JMeter 500 并发
 ```
 基准记录见 `jiwei-modules/src/test/jmeter/BENCHMARK.md`。
 
+> ⚠️ `.mvn/jvm.config` 里**只能写 JVM 参数、不能写注释**：`mvn` 脚本会把该文件每一行原样拼进
+> `MAVEN_OPTS`，注释行会被 JVM 当成主类名，直接报 `Could not find or load main class #`（CI 上实测过）。
+> 该文件的作用是在 Windows 控制台固定 UTF-8，避免中文提示被 GBK 渲染成乱码。
+
 当前全量 **121 例**通过（jiwei-framework 2 / jiwei-modules 59 / jiwei-ai 60），编译 warning 0 条。
 
 除单测外，以下链路在真机（Docker 中间件）上验证过：
