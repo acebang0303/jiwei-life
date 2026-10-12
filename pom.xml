@@ -54,6 +54,16 @@
 
         <!-- Payment -->
         <wechatpay.version>0.2.16</wechatpay.version>
+
+        <!-- Test infra -->
+        <!-- reflections 0.9.11 传递进来的 javassist 3.21.0-GA 的 POM 是畸形的，
+             Maven 每次构建都会为此打一条 [WARNING]，这里统一升到 POM 正常的版本 -->
+        <javassist.version>3.29.2-GA</javassist.version>
+        <!-- 测试 JVM 参数：
+             -XX:+EnableDynamicAgentLoading  消掉 Mockito self-attach byte-buddy 时 JDK 打的 3 条 WARNING
+             -Xshare:off                     消掉 "Sharing is only supported for boot loader classes" 警告
+             -Dfile/stdout/stderr.encoding   中文日志在 Windows 控制台不再乱码 -->
+        <surefire.argLine>-XX:+EnableDynamicAgentLoading -Xshare:off -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8</surefire.argLine>
     </properties>
 
     <dependencyManagement>
@@ -223,6 +233,13 @@
                 <version>42.7.4</version>
             </dependency>
 
+            <!-- RocketMQ -> reflections -> javassist：覆盖畸形 POM 的旧版本，消除构建期 [WARNING] -->
+            <dependency>
+                <groupId>org.javassist</groupId>
+                <artifactId>javassist</artifactId>
+                <version>${javassist.version}</version>
+            </dependency>
+
             <!-- Internal modules -->
             <dependency>
                 <groupId>com.jiwei</groupId>
@@ -273,10 +290,28 @@
                     <configuration>
                         <source>21</source>
                         <target>21</target>
+                        <!-- 打开 -parameters，MyBatis/Spring 才能靠参数名绑定 -->
                         <parameters>true</parameters>
-                        <compilerArgs>
-                            <arg>--enable-preview</arg>
-                        </compilerArgs>
+                        <!-- 显式声明批注处理器（本项目只有 Lombok）。
+                             JDK 21 起不再鼓励从类路径隐式发现处理器，不显式声明的话
+                             每次编译都会打 6 行「批注处理已启用……未来发行版可能禁用」的注记，
+                             既是噪音也是隐患（JDK 23 起会真正失效）。 -->
+                        <proc>full</proc>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                                <version>${lombok.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.2.5</version>
+                    <configuration>
+                        <argLine>${surefire.argLine}</argLine>
                     </configuration>
                 </plugin>
             </plugins>

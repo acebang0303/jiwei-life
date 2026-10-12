@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  测试期日志配置（AI 服务）：只为了让 mvn test 的输出可读。
+  - 固定 UTF-8 输出，中文日志在 Windows 控制台不再乱码
+  - 紧凑 pattern；负向用例（SQL 校验拦截、降级分支）的 WARN 属预期，不静音
+-->
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%-5level %logger{28} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="WARN">
+        <appender-ref ref="STDOUT"/>
+    </root>
+
+    <logger name="com.jiwei" level="INFO"/>
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="reactor" level="WARN"/>
+</configuration>

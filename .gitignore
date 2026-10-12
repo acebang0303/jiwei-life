@@ -34,4 +34,7 @@ dist/
 .env.local
 .env.*
 !.env.example
-jiwei-modules/src/test/jmeter/tokens.csv
+
+# JMeter 压测产物（可重新生成，不入库）
+jiwei-modules/src/test/jmeter/tokens*.csv
+jiwei-modules/src/test/jmeter/reports/

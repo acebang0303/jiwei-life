@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  测试期日志配置：只为了让 mvn test 的输出可读。
+  - 固定 UTF-8 输出，中文日志在 Windows 控制台不再乱码
+  - 紧凑 pattern，去掉线程名/logger 的冗余前缀
+  - 负向用例（校验拦截、熔断跳闸、Redis 降级）本身就会打 WARN/ERROR，
+    这是预期行为，不做静音处理，以免掩盖真实问题
+-->
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%-5level %logger{28} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="WARN">
+        <appender-ref ref="STDOUT"/>
+    </root>
+
+    <!-- 业务代码保留 INFO：测试里需要看到关键链路（攒批写库、对账修正、限流拒绝...） -->
+    <logger name="com.jiwei" level="INFO"/>
+    <!-- 第三方框架在测试期不需要 INFO 噪音 -->
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="org.mybatis" level="WARN"/>
+    <logger name="com.baomidou" level="WARN"/>
+</configuration>
